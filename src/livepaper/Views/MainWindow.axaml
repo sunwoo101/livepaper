@@ -373,7 +373,15 @@
                                 Content="Download &amp; Apply"
                                 Classes="accent"
                                 Margin="8,0,0,0"
+                                IsVisible="{Binding PreviewCard.LibraryItem, Converter={x:Static ObjectConverters.IsNull}}"
                                 Command="{Binding DownloadCommand}"
+                                CommandParameter="{Binding PreviewCard}"/>
+                        <Button Grid.Column="1"
+                                Content="Apply"
+                                Classes="accent"
+                                Margin="8,0,0,0"
+                                IsVisible="{Binding PreviewCard.LibraryItem, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                Command="{Binding ApplyCommand}"
                                 CommandParameter="{Binding PreviewCard}"/>
                         <Button Grid.Column="2"
                                 Content="Close"
