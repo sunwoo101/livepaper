@@ -11,6 +11,12 @@ sealed class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        if (args.Contains("--kill"))
+        {
+            PlayerHelper.Stop();
+            return;
+        }
+
         if (args.Contains("--random"))
         {
             ApplyRandom();

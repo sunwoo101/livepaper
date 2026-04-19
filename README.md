@@ -32,6 +32,7 @@ Installs the binary to `~/.local/bin/livepaper` and registers the app in your la
 livepaper            # open the app
 livepaper --restore  # re-apply the last wallpaper without opening the app
 livepaper --random   # apply a random wallpaper from your library
+livepaper --kill     # stop the wallpaper
 ```
 
 ### Autostart
