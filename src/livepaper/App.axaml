@@ -1,0 +1,176 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="livepaper.App"
+             RequestedThemeVariant="Dark">
+
+<Application.Resources>
+        <SolidColorBrush x:Key="BgBase"    Color="#1e1e2e"/>
+        <SolidColorBrush x:Key="BgMantle"  Color="#181825"/>
+        <SolidColorBrush x:Key="BgCrust"   Color="#11111b"/>
+        <SolidColorBrush x:Key="Surface0"  Color="#313244"/>
+        <SolidColorBrush x:Key="Surface1"  Color="#45475a"/>
+        <SolidColorBrush x:Key="Surface2"  Color="#585b70"/>
+        <SolidColorBrush x:Key="TextColor" Color="#cdd6f4"/>
+        <SolidColorBrush x:Key="Subtext"   Color="#a6adc8"/>
+        <SolidColorBrush x:Key="Muted"     Color="#6c7086"/>
+        <SolidColorBrush x:Key="Accent"    Color="#89b4fa"/>
+        <SolidColorBrush x:Key="AccentFg"  Color="#1e1e2e"/>
+        <SolidColorBrush x:Key="Danger"    Color="#f38ba8"/>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+
+        <!-- Window -->
+        <Style Selector="Window">
+            <Setter Property="Background" Value="{StaticResource BgMantle}"/>
+            <Setter Property="FontFamily" Value="Noto Sans,Inter,Cantarell,Liberation Sans,sans-serif"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+
+        <!-- Buttons -->
+        <Style Selector="Button">
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+
+        <Style Selector="Button.accent">
+            <Setter Property="Background" Value="{StaticResource Accent}"/>
+            <Setter Property="Foreground" Value="{StaticResource AccentFg}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="Button.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#a8c7ff"/>
+        </Style>
+
+        <Style Selector="Button.danger">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource Danger}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Danger}"/>
+        </Style>
+        <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#3d1f24"/>
+        </Style>
+
+        <Style Selector="Button.ghost">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <Style Selector="Button.ghost:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource Surface0}"/>
+        </Style>
+
+        <!-- TextBox -->
+        <Style Selector="TextBox">
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Surface1}"/>
+            <Setter Property="Background" Value="{StaticResource Surface0}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+        <Style Selector="TextBox:focus">
+            <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+        </Style>
+
+        <!-- ComboBox -->
+        <Style Selector="ComboBox">
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Surface1}"/>
+            <Setter Property="Background" Value="{StaticResource Surface0}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+
+        <!-- NumericUpDown -->
+        <Style Selector="NumericUpDown">
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Surface1}"/>
+            <Setter Property="Background" Value="{StaticResource Surface0}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+
+        <!-- Source pill ListBox -->
+        <Style Selector="ListBox.pills">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+        <Style Selector="ListBox.pills ListBoxItem">
+            <Setter Property="CornerRadius" Value="20"/>
+            <Setter Property="Padding" Value="16,7"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="Foreground" Value="{StaticResource Subtext}"/>
+            <Setter Property="Background" Value="{StaticResource Surface0}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="ListBox.pills ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource Accent}"/>
+            <Setter Property="TextElement.Foreground" Value="{StaticResource AccentFg}"/>
+        </Style>
+        <Style Selector="ListBox.pills ListBoxItem:selected">
+            <Setter Property="Foreground" Value="{StaticResource AccentFg}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="ListBox.pills ListBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource Surface1}"/>
+        </Style>
+
+        <!-- Tab control — hide the underline, use foreground only -->
+        <Style Selector="TabControl">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+        <Style Selector="TabItem">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="18,12"/>
+            <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="TabItem:selected">
+            <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <!-- Hide the selected underline pipe -->
+        <Style Selector="TabItem:selected /template/ Border#PART_SelectedPipe">
+            <Setter Property="Background" Value="{StaticResource Accent}"/>
+            <Setter Property="Height" Value="2"/>
+            <Setter Property="CornerRadius" Value="1"/>
+            <Setter Property="Margin" Value="12,0"/>
+        </Style>
+
+        <!-- CheckBox -->
+        <Style Selector="CheckBox">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
+        </Style>
+
+        <!-- Modal backdrop -->
+        <Style Selector="Button.backdrop">
+            <Setter Property="Background" Value="#B2000000"/>
+        </Style>
+        <Style Selector="Button.backdrop:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#B2000000"/>
+        </Style>
+        <Style Selector="Button.backdrop:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#B2000000"/>
+        </Style>
+
+        <!-- ScrollBar -->
+        <Style Selector="ScrollBar">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+
+    </Application.Styles>
+</Application>

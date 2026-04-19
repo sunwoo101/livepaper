@@ -1,0 +1,392 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:livepaper.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:asyncImageLoader="clr-namespace:AsyncImageLoader;assembly=AsyncImageLoader.Avalonia"
+        mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="720"
+        x:Class="livepaper.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="livepaper"
+        Width="1100" Height="720"
+        MinWidth="640" MinHeight="480">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+    <Grid>
+
+        <DockPanel>
+
+            <!-- Status bar -->
+            <Border DockPanel.Dock="Bottom"
+                    Background="{StaticResource BgCrust}"
+                    Padding="16,6">
+                <TextBlock Text="{Binding StatusMessage}"
+                           Foreground="{StaticResource Muted}"
+                           FontSize="11"/>
+            </Border>
+
+            <TabControl>
+
+                <!-- ── Browse ── -->
+                <TabItem Header="Browse">
+                    <DockPanel>
+
+                        <!-- Top bar -->
+                        <Border DockPanel.Dock="Top"
+                                Background="{StaticResource BgBase}"
+                                Padding="16,12"
+                                BorderThickness="0,0,0,1"
+                                BorderBrush="{StaticResource Surface0}">
+                            <DockPanel>
+
+                                <!-- Source pills -->
+                                <ListBox DockPanel.Dock="Left"
+                                         Classes="pills"
+                                         ItemsSource="{Binding Sources}"
+                                         SelectedItem="{Binding SelectedSource}">
+                                    <ListBox.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal"/>
+                                        </ItemsPanelTemplate>
+                                    </ListBox.ItemsPanel>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Name}"/>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+
+                                <!-- Right controls -->
+                                <StackPanel DockPanel.Dock="Right"
+                                            Orientation="Horizontal"
+                                            Spacing="8"
+                                            HorizontalAlignment="Right">
+                                    <TextBox Text="{Binding SearchQuery}"
+                                             PlaceholderText="Search…"
+                                             Width="220"
+                                             IsEnabled="{Binding SelectedSource.SupportsSearch}">
+                                        <TextBox.KeyBindings>
+                                            <KeyBinding Gesture="Enter" Command="{Binding SearchCommand}"/>
+                                        </TextBox.KeyBindings>
+                                    </TextBox>
+                                    <Button Content="Search"
+                                            Classes="ghost"
+                                            Command="{Binding SearchCommand}"
+                                            IsEnabled="{Binding SelectedSource.SupportsSearch}"/>
+                                    <Button Content="↺"
+                                            Classes="ghost"
+                                            Command="{Binding LoadWallpapersCommand}"
+                                            ToolTip.Tip="Refresh"/>
+                                </StackPanel>
+
+                            </DockPanel>
+                        </Border>
+
+                        <!-- Loading bar -->
+                        <ProgressBar DockPanel.Dock="Top"
+                                     IsIndeterminate="True"
+                                     IsVisible="{Binding IsLoading}"
+                                     Height="3" CornerRadius="0"/>
+
+                        <!-- Wallpaper grid -->
+                        <ScrollViewer x:Name="BrowseScrollViewer"
+                                      Padding="12,12,12,0">
+                            <ItemsControl ItemsSource="{Binding BrowseWallpapers}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:WallpaperCardViewModel">
+                                        <Border Width="210" Margin="6" CornerRadius="10"
+                                                ClipToBounds="True"
+                                                Background="{StaticResource BgBase}">
+                                            <Grid RowDefinitions="150,*,Auto">
+
+                                                <Button Grid.Row="0" Padding="0"
+                                                        Background="Transparent" BorderThickness="0"
+                                                        Command="{Binding $parent[Window].DataContext.OpenPreviewCommand}"
+                                                        CommandParameter="{Binding}">
+                                                    <asyncImageLoader:AdvancedImage
+                                                        Source="{Binding ThumbnailSource}"
+                                                        Stretch="UniformToFill"
+                                                        Width="210" Height="150"/>
+                                                </Button>
+
+                                                <TextBlock Grid.Row="1"
+                                                           Text="{Binding Title}"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{StaticResource TextColor}"
+                                                           Margin="10,8,10,4"
+                                                           FontSize="12"
+                                                           MaxLines="2"/>
+
+                                                <Button Grid.Row="2"
+                                                        Content="Download &amp; Apply"
+                                                        Classes="accent"
+                                                        Margin="10,4,10,10"
+                                                        HorizontalAlignment="Stretch"
+                                                        Command="{Binding $parent[Window].DataContext.DownloadCommand}"
+                                                        CommandParameter="{Binding}"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                    </DockPanel>
+                </TabItem>
+
+                <!-- ── Library ── -->
+                <TabItem Header="Library">
+                    <DockPanel>
+
+                        <Border DockPanel.Dock="Top"
+                                Background="{StaticResource BgBase}"
+                                Padding="16,12"
+                                BorderThickness="0,0,0,1"
+                                BorderBrush="{StaticResource Surface0}">
+                            <DockPanel>
+                                <TextBlock Text="Your downloaded wallpapers"
+                                           Foreground="{StaticResource Subtext}"
+                                           FontSize="13"
+                                           VerticalAlignment="Center"/>
+                                <StackPanel DockPanel.Dock="Right"
+                                            Orientation="Horizontal"
+                                            Spacing="10"
+                                            HorizontalAlignment="Right">
+                                    <CheckBox Content="Shuffle"
+                                              IsChecked="{Binding ShuffleLibrary}"
+                                              VerticalAlignment="Center"
+                                              Foreground="{StaticResource Subtext}"/>
+                                    <Button Content="Play All"
+                                            Classes="accent"
+                                            Command="{Binding PlayLibraryCommand}"/>
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+
+                        <ScrollViewer Padding="12,12,12,0">
+                            <ItemsControl ItemsSource="{Binding LibraryWallpapers}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:WallpaperCardViewModel">
+                                        <Border Width="210" Margin="6" CornerRadius="10"
+                                                ClipToBounds="True"
+                                                Background="{StaticResource BgBase}">
+                                            <Grid RowDefinitions="150,*,Auto">
+
+                                                <Button Grid.Row="0" Padding="0"
+                                                        Background="Transparent" BorderThickness="0"
+                                                        Command="{Binding $parent[Window].DataContext.OpenPreviewCommand}"
+                                                        CommandParameter="{Binding}">
+                                                    <asyncImageLoader:AdvancedImage
+                                                        Source="{Binding ThumbnailSource}"
+                                                        Stretch="UniformToFill"
+                                                        Width="210" Height="150"/>
+                                                </Button>
+
+                                                <TextBlock Grid.Row="1"
+                                                           Text="{Binding Title}"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{StaticResource TextColor}"
+                                                           Margin="10,8,10,4"
+                                                           FontSize="12"
+                                                           MaxLines="2"/>
+
+                                                <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="10,4,10,10">
+                                                    <Button Grid.Column="0"
+                                                            Content="Apply"
+                                                            Classes="accent"
+                                                            HorizontalAlignment="Stretch"
+                                                            Command="{Binding $parent[Window].DataContext.ApplyCommand}"
+                                                            CommandParameter="{Binding}"/>
+                                                    <Button Grid.Column="1"
+                                                            Content="Delete"
+                                                            Classes="danger"
+                                                            Margin="6,0,0,0"
+                                                            Command="{Binding $parent[Window].DataContext.DeleteCommand}"
+                                                            CommandParameter="{Binding}"/>
+                                                </Grid>
+
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                    </DockPanel>
+                </TabItem>
+
+                <!-- ── Settings ── -->
+                <TabItem Header="Settings">
+                    <ScrollViewer>
+                        <StackPanel Margin="28" Spacing="20" MaxWidth="500" HorizontalAlignment="Left">
+
+                            <TextBlock Text="Playback"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Muted}"
+                                       LetterSpacing="2"/>
+                            <Border Background="{StaticResource BgBase}" CornerRadius="10" Padding="16">
+                                <StackPanel Spacing="12">
+                                    <CheckBox Content="Loop" IsChecked="{Binding Loop}"
+                                              Foreground="{StaticResource TextColor}"/>
+                                    <CheckBox Content="Mute audio" IsChecked="{Binding NoAudio}"
+                                              Foreground="{StaticResource TextColor}"/>
+                                    <CheckBox Content="Disable cache" IsChecked="{Binding DisableCache}"
+                                              Foreground="{StaticResource TextColor}"/>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="MEMORY"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Muted}"
+                                       LetterSpacing="2"/>
+                            <Border Background="{StaticResource BgBase}" CornerRadius="10" Padding="16">
+                                <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,12,Auto">
+                                    <TextBlock Grid.Row="0" Grid.Column="0"
+                                               Text="Demuxer max bytes"
+                                               VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextColor}"
+                                               Margin="0,0,16,0"/>
+                                    <NumericUpDown Grid.Row="0" Grid.Column="1"
+                                                   Value="{Binding DemuxerMaxBytes}"
+                                                   Minimum="1" Maximum="10000" Increment="1"
+                                                   FormatString="0"/>
+                                    <TextBlock Grid.Row="0" Grid.Column="2"
+                                               Text="MiB" VerticalAlignment="Center"
+                                               Foreground="{StaticResource Subtext}"
+                                               Margin="8,0,0,0"/>
+
+                                    <TextBlock Grid.Row="2" Grid.Column="0"
+                                               Text="Demuxer max back bytes"
+                                               VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextColor}"
+                                               Margin="0,0,16,0"/>
+                                    <NumericUpDown Grid.Row="2" Grid.Column="1"
+                                                   Value="{Binding DemuxerMaxBackBytes}"
+                                                   Minimum="1" Maximum="10000" Increment="1"
+                                                   FormatString="0"/>
+                                    <TextBlock Grid.Row="2" Grid.Column="2"
+                                               Text="MiB" VerticalAlignment="Center"
+                                               Foreground="{StaticResource Subtext}"
+                                               Margin="8,0,0,0"/>
+                                </Grid>
+                            </Border>
+
+                            <TextBlock Text="RENDERING"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Muted}"
+                                       LetterSpacing="2"/>
+                            <Border Background="{StaticResource BgBase}" CornerRadius="10" Padding="16">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Grid.Column="0"
+                                               Text="Hardware decoding"
+                                               VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextColor}"/>
+                                    <ComboBox Grid.Column="1"
+                                              ItemsSource="{Binding HwDecOptions}"
+                                              SelectedItem="{Binding HwDec}"
+                                              Width="130"/>
+                                </Grid>
+                            </Border>
+
+                            <TextBlock Text="COMMAND PREVIEW"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Muted}"
+                                       LetterSpacing="2"/>
+                            <Border Background="{StaticResource BgCrust}" CornerRadius="10" Padding="14">
+                                <TextBlock Text="{Binding MpvOptionsPreview}"
+                                           FontFamily="Monospace"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource Accent}"/>
+                            </Border>
+
+                            <Button Content="Reset to Defaults"
+                                    Classes="ghost"
+                                    Command="{Binding ResetMpvOptionsCommand}"/>
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+            </TabControl>
+        </DockPanel>
+
+        <!-- Download progress modal -->
+        <Grid IsVisible="{Binding IsDownloading}" Background="#B2000000">
+            <Border Background="{StaticResource BgBase}" CornerRadius="12" Padding="28"
+                    Width="420" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel Spacing="14">
+                    <TextBlock Text="Downloading" FontSize="15" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextColor}"/>
+                    <TextBlock Text="{Binding DownloadTitle}" FontSize="12"
+                               Foreground="{StaticResource Subtext}"
+                               TextTrimming="CharacterEllipsis"/>
+                    <ProgressBar Value="{Binding DownloadProgress}"
+                                 Minimum="0" Maximum="1"
+                                 IsIndeterminate="{Binding DownloadIndeterminate}"
+                                 Height="6" CornerRadius="3"/>
+                    <TextBlock FontSize="11" Foreground="{StaticResource Muted}"
+                               HorizontalAlignment="Right">
+                        <TextBlock.Text>
+                            <Binding Path="DownloadProgress" StringFormat="{}{0:P0}"/>
+                        </TextBlock.Text>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Image preview modal -->
+        <Grid IsVisible="{Binding PreviewCard, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <Button Classes="backdrop"
+                    HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                    BorderThickness="0"
+                    Command="{Binding ClosePreviewCommand}"/>
+
+            <Border Background="{StaticResource BgBase}" CornerRadius="12" Padding="16"
+                    MaxWidth="860" MaxHeight="600"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Grid RowDefinitions="*,Auto">
+
+                    <asyncImageLoader:AdvancedImage Grid.Row="0"
+                        Source="{Binding PreviewCard.ThumbnailSource}"
+                        Stretch="Uniform"
+                        MaxWidth="828" MaxHeight="500"/>
+
+                    <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" Margin="0,12,0,0">
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding PreviewCard.Title}"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextColor}"
+                                   FontSize="13" TextTrimming="CharacterEllipsis"/>
+                        <Button Grid.Column="1"
+                                Content="Download &amp; Apply"
+                                Classes="accent"
+                                Margin="8,0,0,0"
+                                Command="{Binding DownloadCommand}"
+                                CommandParameter="{Binding PreviewCard}"/>
+                        <Button Grid.Column="2"
+                                Content="Close"
+                                Classes="ghost"
+                                Margin="8,0,0,0"
+                                Command="{Binding ClosePreviewCommand}"/>
+                    </Grid>
+
+                </Grid>
+            </Border>
+        </Grid>
+
+    </Grid>
+</Window>

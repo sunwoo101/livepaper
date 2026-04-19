@@ -1,0 +1,6 @@
+src/livepaper/bin/
+src/livepaper/obj/
+publish/
+AppDir/
+scripts/appimagetool
+*.AppImage

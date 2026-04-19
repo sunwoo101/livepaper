@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+
+  <!-- Monitor frame -->
+  <rect x="52" y="93" width="408" height="284" rx="22" fill="#181825"/>
+  <rect x="52" y="93" width="408" height="284" rx="22"
+        fill="none" stroke="#45475a" stroke-width="7"/>
+
+  <!-- Screen -->
+  <rect x="76" y="113" width="360" height="244" rx="10" fill="#1e1e2e"/>
+
+  <!-- Stand neck -->
+  <rect x="234" y="377" width="44" height="26" fill="#313244"/>
+
+  <!-- Stand base -->
+  <rect x="168" y="401" width="176" height="18" rx="9" fill="#45475a"/>
+
+  <!-- Play button -->
+  <circle cx="256" cy="235" r="74" fill="#89b4fa"/>
+  <polygon points="238,209 238,261 296,235" fill="#11111b"/>
+
+</svg>
