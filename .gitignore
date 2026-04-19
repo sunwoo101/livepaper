@@ -3,4 +3,9 @@ src/livepaper/obj/
 publish/
 AppDir/
 scripts/appimagetool
+scripts/*.pkg.tar.zst
+scripts/*.pkg.tar.zst.sig
+scripts/src/
+scripts/pkg/
+scripts/livepaper-git/
 *.AppImage
