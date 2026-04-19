@@ -155,6 +155,32 @@ mpvpaper -o "<mpv-options>" '*' /path/to/wallpaper.mp4
 
 `--restore` replays the session exactly: single video, playlist (with original paths + shuffle), or the specific video that `--random` picked.
 
+## Distribution
+
+### Scripts (`scripts/`)
+- `install.sh` — builds a self-contained single binary (`PublishSingleFile=true`), installs to `~/.local/bin/`, drops desktop entry in `~/.local/share/applications/`, installs icon to `~/.local/share/icons/hicolor/512x512/apps/`
+- `build-appimage.sh` — same build, packages into `livepaper-x86_64.AppImage` using `appimagetool` (downloaded automatically if not in PATH)
+- `PKGBUILD` + `.SRCINFO` — AUR package `livepaper-git`, published at `aur.archlinux.org/packages/livepaper-git`
+
+When updating the AUR package, regenerate `.SRCINFO` and push to the separate AUR git repo:
+```bash
+cd scripts && makepkg --printsrcinfo > .SRCINFO
+cp PKGBUILD .SRCINFO /tmp/aur-livepaper/
+cd /tmp/aur-livepaper && git add PKGBUILD .SRCINFO && git commit -m "..." && git push
+```
+
+### Assets (`src/livepaper/Assets/`)
+- `livepaper.svg` — source icon (monitor + play button, transparent background)
+- `livepaper.png` — 512×512 PNG exported from SVG via `rsvg-convert`
+
+To regenerate the PNG after editing the SVG:
+```bash
+rsvg-convert -w 512 -h 512 src/livepaper/Assets/livepaper.svg -o src/livepaper/Assets/livepaper.png
+```
+
+### Commit style
+Short, title-case, no period. e.g. `Fix App Name`, `Add Shuffle Toggle`.
+
 ## Key NuGet Packages
 
 - `Avalonia`, `Avalonia.Desktop`, `Avalonia.Themes.Fluent` — UI framework
