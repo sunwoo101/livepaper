@@ -46,12 +46,13 @@ public static class PlayerHelper
 
     private static Process? Launch(string mpvOptions, string file)
     {
-        var psi = new ProcessStartInfo("mpvpaper")
+        var psi = new ProcessStartInfo("setsid")
         {
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
+        psi.ArgumentList.Add("mpvpaper");
         psi.ArgumentList.Add("-o");
         psi.ArgumentList.Add(mpvOptions);
         psi.ArgumentList.Add("*");
