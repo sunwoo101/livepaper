@@ -2,6 +2,8 @@
 
 A live wallpaper manager for Wayland. Browse and download animated wallpapers from online sources, or play wallpapers directly from your local Wallpaper Engine library — all applied to your desktop using [mpvpaper](https://github.com/GhostNaN/mpvpaper).
 
+![livepaper](docs/app.png)
+
 ## Requirements
 
 - Wayland compositor (Hyprland, Sway, GNOME on Wayland, etc.)
@@ -57,7 +59,7 @@ exec livepaper --restore
 
   Filter by Video type in Wallpaper Engine to find compatible wallpapers:
 
-  ![Wallpaper Engine type filter](docs/type-screenshot.png)
+  ![Wallpaper Engine type filter](docs/we-video-type.png)
 
 ## Library
 
