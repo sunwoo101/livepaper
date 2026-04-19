@@ -19,6 +19,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [
         new MotionBgsService(),
         new MoewallsService(),
+        new DesktophutService(),
         new WallpaperEngineService()
     ];
 
