@@ -14,12 +14,20 @@ dotnet publish "$ROOT/src/livepaper" \
     -r linux-x64 \
     --self-contained \
     -c Release \
-    -p:PublishSingleFile=true \
     -o "$PUBLISH_DIR"
 
-echo "==> Installing binary to $BIN_DIR..."
+echo "==> Installing to $HOME/.local/lib/livepaper/..."
+mkdir -p "$HOME/.local/lib/livepaper"
+cp -r "$PUBLISH_DIR"/. "$HOME/.local/lib/livepaper/"
+chmod 755 "$HOME/.local/lib/livepaper/livepaper"
+
+echo "==> Installing launcher to $BIN_DIR..."
 mkdir -p "$BIN_DIR"
-install -m 755 "$PUBLISH_DIR/livepaper" "$BIN_DIR/livepaper"
+cat > "$BIN_DIR/livepaper" <<'WRAPPER'
+#!/bin/bash
+exec "$HOME/.local/lib/livepaper/livepaper" "$@"
+WRAPPER
+chmod 755 "$BIN_DIR/livepaper"
 
 echo "==> Installing icon..."
 mkdir -p "$ICONS_DIR"

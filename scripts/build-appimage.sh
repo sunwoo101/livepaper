@@ -13,17 +13,17 @@ dotnet publish "$ROOT/src/livepaper" \
     -r linux-x64 \
     --self-contained \
     -c Release \
-    -p:PublishSingleFile=true \
     -o "$PUBLISH_DIR"
 
 echo "==> Setting up AppDir..."
 rm -rf "$APPDIR"
-mkdir -p "$APPDIR/usr/bin"
-install -m 755 "$PUBLISH_DIR/livepaper" "$APPDIR/usr/bin/livepaper"
+mkdir -p "$APPDIR/usr/lib/livepaper" "$APPDIR/usr/bin"
+cp -r "$PUBLISH_DIR"/. "$APPDIR/usr/lib/livepaper/"
+chmod 755 "$APPDIR/usr/lib/livepaper/livepaper"
 
 cat > "$APPDIR/AppRun" <<'EOF'
 #!/bin/bash
-exec "$APPDIR/usr/bin/livepaper" "$@"
+exec "$APPDIR/usr/lib/livepaper/livepaper" "$@"
 EOF
 chmod +x "$APPDIR/AppRun"
 
