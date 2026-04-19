@@ -53,7 +53,11 @@ exec livepaper --restore
 
 - **motionbgs.com** — large collection of animated wallpapers
 - **moewalls.com** — anime-style animated wallpapers
-- **Wallpaper Engine** — your local Wallpaper Engine library (Steam workshop)
+- **Wallpaper Engine** — your local Wallpaper Engine library (Steam workshop, **Video type only**)
+
+  Filter by Video type in Wallpaper Engine to find compatible wallpapers:
+
+  ![Wallpaper Engine type filter](docs/type-screenshot.png)
 
 ## Library
 
