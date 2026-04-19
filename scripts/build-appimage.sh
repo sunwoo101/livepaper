@@ -29,7 +29,7 @@ chmod +x "$APPDIR/AppRun"
 
 cat > "$APPDIR/livepaper.desktop" <<'EOF'
 [Desktop Entry]
-Name=livepaper
+Name=Livepaper
 Comment=Live wallpaper manager for Wayland
 Exec=livepaper
 Icon=livepaper

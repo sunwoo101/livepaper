@@ -29,7 +29,7 @@ echo "==> Installing desktop entry..."
 mkdir -p "$APPS_DIR"
 cat > "$APPS_DIR/livepaper.desktop" <<EOF
 [Desktop Entry]
-Name=livepaper
+Name=Livepaper
 Comment=Live wallpaper manager for Wayland
 Exec=$BIN_DIR/livepaper
 Icon=livepaper
