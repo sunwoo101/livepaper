@@ -1,6 +1,6 @@
 # livepaper
 
-A live wallpaper manager for Wayland. Browse and download animated wallpapers from online sources and apply them to your desktop using [mpvpaper](https://github.com/GhostNaN/mpvpaper).
+A live wallpaper manager for Wayland. Browse and download animated wallpapers from online sources, or play wallpapers directly from your local Wallpaper Engine library — all applied to your desktop using [mpvpaper](https://github.com/GhostNaN/mpvpaper).
 
 ## Requirements
 
