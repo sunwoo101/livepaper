@@ -63,6 +63,7 @@ public static class DownloadHelper
             req.Headers.Referrer = new Uri(referrer);
 
         using var resp = await HttpClientProvider.Client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
+
         resp.EnsureSuccessStatusCode();
 
         long? total = resp.Content.Headers.ContentLength;

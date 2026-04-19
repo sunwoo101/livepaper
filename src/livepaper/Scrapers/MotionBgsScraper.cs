@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
@@ -105,9 +106,10 @@ public static class MotionBgsScraper
             if (string.IsNullOrEmpty(img))
                 img = imgNode?.GetAttributeValue("src", "") ?? "";
 
-            string? title = a.SelectSingleNode(".//span[@class='ttl']")?.InnerText?.Trim()
-                         ?? imgNode?.GetAttributeValue("alt", "")?.Trim()
-                         ?? a.GetAttributeValue("title", "")?.Trim();
+            string? title = WebUtility.HtmlDecode(
+                a.SelectSingleNode(".//span[@class='ttl']")?.InnerText?.Trim()
+                ?? imgNode?.GetAttributeValue("alt", "")?.Trim()
+                ?? a.GetAttributeValue("title", "")?.Trim());
             string? resolution = a.SelectSingleNode(".//span[@class='frm']")?.InnerText?.Trim();
             string href = a.GetAttributeValue("href", "");
 
@@ -177,8 +179,9 @@ public static class MotionBgsScraper
                              || img.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase)
                              || img.EndsWith(".png", StringComparison.OrdinalIgnoreCase);
 
-                string? title = a.SelectSingleNode(".//span[@class='ttl']")?.InnerText?.Trim()
-                             ?? a.GetAttributeValue("title", "");
+                string? title = WebUtility.HtmlDecode(
+                    a.SelectSingleNode(".//span[@class='ttl']")?.InnerText?.Trim()
+                    ?? a.GetAttributeValue("title", ""));
                 string? resolution = a.SelectSingleNode(".//span[@class='frm']")?.InnerText?.Trim();
                 string href = a.GetAttributeValue("href", "");
 

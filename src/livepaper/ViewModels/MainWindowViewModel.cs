@@ -34,9 +34,15 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private double _downloadProgress;
     [ObservableProperty] private string _downloadTitle = "";
     [ObservableProperty] private bool _downloadIndeterminate = true;
+    [ObservableProperty] private string? _errorMessage;
+    [ObservableProperty] private string _errorTitle = "Download Failed";
 
     partial void OnDownloadProgressChanged(double value) =>
         DownloadIndeterminate = value < 0.01;
+
+    [RelayCommand]
+    private void DismissError() => ErrorMessage = null;
+
 
     private bool _isSearchMode;
     private string _currentQuery = "";
@@ -70,6 +76,7 @@ public partial class MainWindowViewModel : ViewModelBase
 #pragma warning restore MVVMTK0034
 
         LoadLibrary();
+
     }
 
     partial void OnLoopChanged(bool value) => SaveAndRebuild();
@@ -184,17 +191,22 @@ public partial class MainWindowViewModel : ViewModelBase
                 ? await SelectedSource.SearchAsync(_currentQuery, CurrentPage)
                 : await SelectedSource.GetLatestAsync(CurrentPage);
 
-            if (results.Count == 0)
+            var existingUrls = BrowseWallpapers.Select(c => c.PageUrl).ToHashSet();
+            int added = 0;
+            foreach (var r in results)
+            {
+                if (existingUrls.Contains(r.PageUrl)) continue;
+                BrowseWallpapers.Add(new WallpaperCardViewModel(r));
+                added++;
+            }
+            if (added == 0)
             {
                 NoMorePages = true;
-                return;
             }
-
-            foreach (var r in results)
-                BrowseWallpapers.Add(new WallpaperCardViewModel(r));
         }
         catch (Exception ex)
         {
+            NoMorePages = true;
             StatusMessage = $"Failed to load more: {ex.Message}";
         }
         finally
@@ -238,6 +250,11 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
+            bool isRateLimit = ex.Message.Contains("daily download limit");
+            ErrorTitle = isRateLimit ? "Wallsflow Download Limit" : "Download Failed";
+            ErrorMessage = isRateLimit
+                ? "Wallsflow limits unregistered users to 5 downloads per day. Log in to your Wallsflow account in Settings to continue downloading."
+                : ex.Message;
             StatusMessage = $"Download failed: {ex.Message}";
         }
         finally

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
 using livepaper.Models;
@@ -60,7 +61,7 @@ public static class MoewallsScraper
             {
                 string? img = item.SelectSingleNode(".//img")?.GetAttributeValue("src", "");
                 var frame = item.SelectSingleNode(".//a[@class='g1-frame']");
-                string? title = frame?.GetAttributeValue("title", "");
+                string? title = WebUtility.HtmlDecode(frame?.GetAttributeValue("title", ""));
                 string? href = frame?.GetAttributeValue("href", "");
 
                 if (string.IsNullOrEmpty(title) || string.IsNullOrEmpty(href)) continue;

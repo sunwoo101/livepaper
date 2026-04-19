@@ -15,20 +15,9 @@
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
-    <Grid>
+    <Grid RowDefinitions="*,Auto">
 
-        <DockPanel>
-
-            <!-- Status bar -->
-            <Border DockPanel.Dock="Bottom"
-                    Background="{StaticResource BgCrust}"
-                    Padding="16,6">
-                <TextBlock Text="{Binding StatusMessage}"
-                           Foreground="{StaticResource Muted}"
-                           FontSize="11"/>
-            </Border>
-
-            <TabControl>
+            <TabControl Grid.Row="0">
 
                 <!-- ── Browse ── -->
                 <TabItem Header="Browse">
@@ -97,7 +86,7 @@
                             <ItemsControl ItemsSource="{Binding BrowseWallpapers}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
-                                        <WrapPanel/>
+                                        <WrapPanel Margin="0,0,0,32"/>
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
@@ -175,7 +164,7 @@
                             <ItemsControl ItemsSource="{Binding LibraryWallpapers}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
-                                        <WrapPanel/>
+                                        <WrapPanel Margin="0,0,0,32"/>
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
@@ -317,15 +306,24 @@
                                     Classes="ghost"
                                     Command="{Binding ResetMpvOptionsCommand}"/>
 
+
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>
 
             </TabControl>
-        </DockPanel>
+
+        <!-- Status bar -->
+        <Border Grid.Row="1"
+                Background="{StaticResource BgCrust}"
+                Padding="16,6">
+            <TextBlock Text="{Binding StatusMessage}"
+                       Foreground="{StaticResource Muted}"
+                       FontSize="11"/>
+        </Border>
 
         <!-- Download progress modal -->
-        <Grid IsVisible="{Binding IsDownloading}" Background="#B2000000">
+        <Grid Grid.RowSpan="2" IsVisible="{Binding IsDownloading}" Background="#B2000000">
             <Border Background="{StaticResource BgBase}" CornerRadius="12" Padding="28"
                     Width="420" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel Spacing="14">
@@ -349,7 +347,7 @@
         </Grid>
 
         <!-- Image preview modal -->
-        <Grid IsVisible="{Binding PreviewCard, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <Grid Grid.RowSpan="2" IsVisible="{Binding PreviewCard, Converter={x:Static ObjectConverters.IsNotNull}}">
             <Button Classes="backdrop"
                     HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                     BorderThickness="0"
@@ -385,6 +383,23 @@
                     </Grid>
 
                 </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Error modal -->
+        <Grid Grid.RowSpan="2" IsVisible="{Binding ErrorMessage, Converter={x:Static ObjectConverters.IsNotNull}}"
+              Background="#B2000000">
+            <Border Background="{StaticResource BgBase}" CornerRadius="12" Padding="28"
+                    Width="420" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel Spacing="14">
+                    <TextBlock Text="{Binding ErrorTitle}" FontSize="15" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextColor}"/>
+                    <TextBlock Text="{Binding ErrorMessage}" FontSize="12"
+                               Foreground="{StaticResource TextColor}"
+                               TextWrapping="Wrap"/>
+                    <Button Content="OK" Classes="ghost" HorizontalAlignment="Right"
+                            Command="{Binding DismissErrorCommand}"/>
+                </StackPanel>
             </Border>
         </Grid>
 
