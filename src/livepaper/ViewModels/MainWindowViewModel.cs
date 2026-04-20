@@ -47,6 +47,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private bool _isSearchMode;
     private string _currentQuery = "";
+    private int _loadGeneration;
     public bool NoMorePages { get; private set; }
 
     // mpvpaper settings
@@ -128,6 +129,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task LoadWallpapersAsync()
     {
+        var gen = ++_loadGeneration;
         _isSearchMode = false;
         NoMorePages = false;
         IsLoading = true;
@@ -137,16 +139,19 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var results = await SelectedSource.GetLatestAsync(CurrentPage);
+            if (gen != _loadGeneration) return;
             foreach (var r in results)
                 BrowseWallpapers.Add(new WallpaperCardViewModel(r));
         }
         catch (Exception ex)
         {
+            if (gen != _loadGeneration) return;
             StatusMessage = $"Failed to load: {ex.Message}";
         }
         finally
         {
-            IsLoading = false;
+            if (gen == _loadGeneration)
+                IsLoading = false;
         }
     }
 
@@ -155,6 +160,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (!SelectedSource.SupportsSearch || string.IsNullOrWhiteSpace(SearchQuery)) return;
 
+        var gen = ++_loadGeneration;
         _isSearchMode = true;
         _currentQuery = SearchQuery;
         CurrentPage = 1;
@@ -166,16 +172,19 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var results = await SelectedSource.SearchAsync(SearchQuery, 1);
+            if (gen != _loadGeneration) return;
             foreach (var r in results)
                 BrowseWallpapers.Add(new WallpaperCardViewModel(r));
         }
         catch (Exception ex)
         {
+            if (gen != _loadGeneration) return;
             StatusMessage = $"Search failed: {ex.Message}";
         }
         finally
         {
-            IsLoading = false;
+            if (gen == _loadGeneration)
+                IsLoading = false;
         }
     }
 
