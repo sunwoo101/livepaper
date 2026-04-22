@@ -668,22 +668,32 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void Delete(WallpaperCardViewModel card)
     {
-        if (card.LibraryItem == null) return;
-        try
+        var selected = LibraryWallpapers.Where(c => c.IsSelected).ToList();
+        var toDelete = selected.Count > 0 && selected.Contains(card) ? selected : [card];
+
+        int deleted = 0;
+        foreach (var target in toDelete)
         {
-            LibraryService.Delete(card.LibraryItem);
-            LibraryWallpapers.Remove(card);
-            if (card.IsInPlaylist)
+            if (target.LibraryItem == null) continue;
+            try
             {
-                PlaylistItems.Remove(card);
-                card.IsInPlaylist = false;
+                LibraryService.Delete(target.LibraryItem);
+                LibraryWallpapers.Remove(target);
+                if (target.IsInPlaylist)
+                {
+                    PlaylistItems.Remove(target);
+                    target.IsInPlaylist = false;
+                }
+                deleted++;
             }
-            StatusMessage = $"Deleted: {card.Title}";
+            catch (Exception ex)
+            {
+                StatusMessage = $"Delete failed: {target.Title}: {ex.Message}";
+            }
         }
-        catch (Exception ex)
-        {
-            StatusMessage = $"Delete failed: {ex.Message}";
-        }
+
+        StatusMessage = deleted > 1 ? $"Deleted {deleted} wallpapers" : $"Deleted: {toDelete[0].Title}";
+        _lastSelectedIndex = -1;
     }
 
     [ObservableProperty] private bool _shuffleLibrary;
