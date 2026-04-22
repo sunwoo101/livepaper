@@ -74,7 +74,15 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private ObservableCollection<WallpaperCardViewModel> _playlistItems = [];
     [ObservableProperty] private bool _isPlaylistEmpty = true;
     [ObservableProperty] private bool _isPlaylistSettingsOpen;
-    [ObservableProperty] private bool _playlistShuffle;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSequential))]
+    private bool _playlistShuffle;
+
+    public bool IsSequential
+    {
+        get => !PlaylistShuffle;
+        set => PlaylistShuffle = !value;
+    }
     [ObservableProperty] private decimal _intervalHours = 0;
     [ObservableProperty] private decimal _intervalMinutes = 30;
     [ObservableProperty] private decimal _intervalSeconds = 0;

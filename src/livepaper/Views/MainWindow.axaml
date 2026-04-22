@@ -403,26 +403,28 @@
                                                    Foreground="{StaticResource Muted}"
                                                    LetterSpacing="2"/>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <Button Content="Sequential"
-                                                    Command="{Binding SetSequentialCommand}"
-                                                    IsEnabled="{Binding PlaylistShuffle}">
-                                                <Button.Styles>
-                                                    <Style Selector="Button:not(:enabled)">
+                                            <ToggleButton Content="Sequential"
+                                                          IsChecked="{Binding IsSequential}">
+                                                <ToggleButton.Styles>
+                                                    <Style Selector="ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
                                                         <Setter Property="Background" Value="{StaticResource Accent}"/>
+                                                    </Style>
+                                                    <Style Selector="ToggleButton:checked">
                                                         <Setter Property="Foreground" Value="{StaticResource AccentFg}"/>
                                                     </Style>
-                                                </Button.Styles>
-                                            </Button>
-                                            <Button Content="Shuffle"
-                                                    Command="{Binding SetShuffleCommand}"
-                                                    IsEnabled="{Binding !PlaylistShuffle}">
-                                                <Button.Styles>
-                                                    <Style Selector="Button:not(:enabled)">
+                                                </ToggleButton.Styles>
+                                            </ToggleButton>
+                                            <ToggleButton Content="Shuffle"
+                                                          IsChecked="{Binding PlaylistShuffle}">
+                                                <ToggleButton.Styles>
+                                                    <Style Selector="ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
                                                         <Setter Property="Background" Value="{StaticResource Accent}"/>
+                                                    </Style>
+                                                    <Style Selector="ToggleButton:checked">
                                                         <Setter Property="Foreground" Value="{StaticResource AccentFg}"/>
                                                     </Style>
-                                                </Button.Styles>
-                                            </Button>
+                                                </ToggleButton.Styles>
+                                            </ToggleButton>
                                         </StackPanel>
                                     </StackPanel>
 
