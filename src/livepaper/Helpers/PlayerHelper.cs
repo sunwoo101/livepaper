@@ -12,7 +12,10 @@ namespace livepaper.Helpers;
 public static class PlayerHelper
 {
     private static Process? _current;
-    private const string IpcSocket = "/tmp/livepaper-mpv.sock";
+
+    private static string IpcSocket => Path.Combine(
+        Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") ?? Path.GetTempPath(),
+        "livepaper", "mpv.sock");
 
     public static void Apply(string videoPath, string mpvOptions)
     {
@@ -50,20 +53,28 @@ public static class PlayerHelper
 
     public static void SetVolume(int volume)
     {
+        var socketPath = IpcSocket;
+        if (!File.Exists(socketPath)) return;
         try
         {
-            if (!File.Exists(IpcSocket)) return;
             using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-            socket.Connect(new UnixDomainSocketEndPoint(IpcSocket));
+            socket.Connect(new UnixDomainSocketEndPoint(socketPath));
             var cmd = JsonSerializer.Serialize(new { command = new object[] { "set_property", "volume", (double)volume } });
             socket.Send(Encoding.UTF8.GetBytes(cmd + "\n"));
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[PlayerHelper] SetVolume failed: {ex.Message}");
+        }
     }
 
     private static Process? Launch(string mpvOptions, string file)
     {
-        var options = $"{mpvOptions} --input-ipc-server={IpcSocket}";
+        var socketPath = IpcSocket;
+        Directory.CreateDirectory(Path.GetDirectoryName(socketPath)!);
+        if (File.Exists(socketPath)) File.Delete(socketPath);
+
+        var options = $"{mpvOptions} --input-ipc-server={socketPath}";
         var psi = new ProcessStartInfo("setsid")
         {
             UseShellExecute = false,
@@ -88,5 +99,7 @@ public static class PlayerHelper
             try { proc.Kill(entireProcessTree: true); } catch { }
         }
         _current = null;
+        var socketPath = IpcSocket;
+        if (File.Exists(socketPath)) File.Delete(socketPath);
     }
 }

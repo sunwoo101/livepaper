@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -61,6 +62,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private string _mpvOptionsPreview = "";
 
     private readonly Models.AppSettings _settings;
+    private CancellationTokenSource? _volumeSaveCts;
 
     public MainWindowViewModel()
     {
@@ -91,8 +93,15 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnHwDecChanged(string value) => SaveAndRebuild();
     partial void OnVolumeChanged(int value)
     {
-        SaveAndRebuild();
-        PlayerHelper.SetVolume(value);
+        Task.Run(() => PlayerHelper.SetVolume(value));
+
+        _volumeSaveCts?.Cancel();
+        _volumeSaveCts = new CancellationTokenSource();
+        var cts = _volumeSaveCts;
+        Task.Delay(400, cts.Token).ContinueWith(t =>
+        {
+            if (!t.IsCanceled) SaveAndRebuild();
+        }, TaskScheduler.Default);
     }
 
     private void SaveAndRebuild()
