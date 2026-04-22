@@ -18,6 +18,7 @@ public static class PlayerHelper
     private static int _timedIndex;
     private static string _timedOptions = "";
     private static bool _timedShuffle;
+    private static readonly object _lock = new();
 
     private static string IpcSocket => Path.Combine(
         Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") ?? Path.GetTempPath(),
@@ -25,74 +26,86 @@ public static class PlayerHelper
 
     public static void Apply(string videoPath, string mpvOptions)
     {
-        KillAll();
-        _current = Launch(mpvOptions, videoPath);
+        lock (_lock)
+        {
+            KillAll();
+            _current = Launch(mpvOptions, videoPath);
+        }
     }
 
     public static void ApplyPlaylist(IReadOnlyList<string> videoPaths, string mpvOptions, bool shuffle = false)
     {
         if (videoPaths.Count == 0) return;
-        KillAll();
-
-        if (videoPaths.Count == 1)
+        lock (_lock)
         {
-            _current = Launch(mpvOptions, videoPaths[0]);
-            return;
+            KillAll();
+
+            if (videoPaths.Count == 1)
+            {
+                _current = Launch(mpvOptions, videoPaths[0]);
+                return;
+            }
+
+            var cacheDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".cache", "livepaper");
+            Directory.CreateDirectory(cacheDir);
+
+            var playlistPath = Path.Combine(cacheDir, "playlist.txt");
+            File.WriteAllLines(playlistPath, videoPaths.Take(videoPaths.Count - 1));
+
+            var shuffleFlag = shuffle ? " --shuffle" : "";
+            var options = $"{mpvOptions} --playlist={playlistPath} --loop-playlist=inf{shuffleFlag}";
+            _current = Launch(options, videoPaths[videoPaths.Count - 1]);
         }
-
-        var cacheDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".cache", "livepaper");
-        Directory.CreateDirectory(cacheDir);
-
-        var playlistPath = Path.Combine(cacheDir, "playlist.txt");
-        File.WriteAllLines(playlistPath, videoPaths.Take(videoPaths.Count - 1));
-
-        var shuffleFlag = shuffle ? " --shuffle" : "";
-        var options = $"{mpvOptions} --playlist={playlistPath} --loop-playlist=inf{shuffleFlag}";
-        _current = Launch(options, videoPaths[videoPaths.Count - 1]);
     }
 
     public static void ApplyTimedPlaylist(IReadOnlyList<string> paths, string mpvOptions, bool shuffle, int intervalSeconds)
     {
-        KillAll();
-        if (paths.Count == 0) return;
-
-        var ordered = shuffle
-            ? paths.OrderBy(_ => Guid.NewGuid()).ToList()
-            : new List<string>(paths);
-
-        _timedPaths = ordered;
-        _timedIndex = 0;
-        _timedOptions = mpvOptions;
-        _timedShuffle = shuffle;
-        _current = Launch(mpvOptions, ordered[0]);
-
-        if (ordered.Count > 1 && intervalSeconds > 0)
+        lock (_lock)
         {
-            var interval = TimeSpan.FromSeconds(intervalSeconds);
-            _playlistTimer = new Timer(_ =>
+            KillAll();
+            if (paths.Count == 0) return;
+
+            var ordered = shuffle
+                ? paths.OrderBy(_ => Guid.NewGuid()).ToList()
+                : new List<string>(paths);
+
+            _timedPaths = ordered;
+            _timedIndex = 0;
+            _timedOptions = mpvOptions;
+            _timedShuffle = shuffle;
+            _current = Launch(mpvOptions, ordered[0]);
+
+            if (ordered.Count > 1 && intervalSeconds > 0)
             {
-                var p = _timedPaths;
-                if (p == null) return;
-                var opts = _timedOptions;
-                _timedIndex++;
-                if (_timedIndex >= p.Count)
+                var interval = TimeSpan.FromSeconds(intervalSeconds);
+                _playlistTimer = new Timer(_ =>
                 {
-                    if (_timedShuffle)
+                    lock (_lock)
                     {
-                        var last = p[p.Count - 1];
-                        List<string> reshuffled;
-                        do { reshuffled = p.OrderBy(_ => Guid.NewGuid()).ToList(); }
-                        while (p.Count > 1 && reshuffled[0] == last);
-                        _timedPaths = p = reshuffled;
+                        var p = _timedPaths;
+                        if (p == null) return;
+                        var opts = _timedOptions;
+                        _timedIndex++;
+                        if (_timedIndex >= p.Count)
+                        {
+                            if (_timedShuffle)
+                            {
+                                var last = p[p.Count - 1];
+                                List<string> reshuffled;
+                                do { reshuffled = p.OrderBy(_ => Guid.NewGuid()).ToList(); }
+                                while (p.Count > 1 && reshuffled[0] == last);
+                                _timedPaths = p = reshuffled;
+                            }
+                            _timedIndex = 0;
+                        }
+                        KillCurrentProcess();
+                        if (_timedPaths == null) return;
+                        _current = Launch(opts, p[_timedIndex]);
                     }
-                    _timedIndex = 0;
-                }
-                KillCurrentProcess();
-                if (_timedPaths == null) return;
-                _current = Launch(opts, p[_timedIndex]);
-            }, null, interval, interval);
+                }, null, interval, interval);
+            }
         }
     }
 
@@ -145,7 +158,10 @@ public static class PlayerHelper
     {
         foreach (var proc in Process.GetProcessesByName("mpvpaper"))
         {
-            try { proc.Kill(entireProcessTree: true); } catch { }
+            using (proc)
+            {
+                try { proc.Kill(entireProcessTree: true); } catch { }
+            }
         }
         _current = null;
         var socketPath = IpcSocket;

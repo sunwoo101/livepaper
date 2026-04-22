@@ -40,14 +40,23 @@ public partial class MainWindow : Window
     }
 
     private MainWindowViewModel? Vm => DataContext as MainWindowViewModel;
+    private MainWindowViewModel? _boundVm;
 
     private void OnDataContextChanged(object? sender, System.EventArgs e)
     {
+        if (_boundVm != null)
+        {
+            _boundVm.PropertyChanged -= OnViewModelPropertyChanged;
+            _boundVm.OpenSaveDialog = null;
+            _boundVm.OpenLoadDialog = null;
+            _boundVm = null;
+        }
         if (DataContext is MainWindowViewModel vm)
         {
             vm.PropertyChanged += OnViewModelPropertyChanged;
             vm.OpenSaveDialog = OpenSaveDialogAsync;
             vm.OpenLoadDialog = OpenLoadDialogAsync;
+            _boundVm = vm;
         }
     }
 
