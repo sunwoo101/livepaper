@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using livepaper.Helpers;
@@ -128,11 +129,11 @@ public partial class MainWindowViewModel : ViewModelBase
         Task.Run(() => PlayerHelper.SetVolume(value));
 
         _volumeSaveCts?.Cancel();
-        _volumeSaveCts = new CancellationTokenSource();
-        var cts = _volumeSaveCts;
+        _volumeSaveCts?.Dispose();
+        var cts = _volumeSaveCts = new CancellationTokenSource();
         Task.Delay(400, cts.Token).ContinueWith(t =>
         {
-            if (!t.IsCanceled) SaveAndRebuild();
+            if (!t.IsCanceled) Dispatcher.UIThread.Post(SaveAndRebuild);
         }, TaskScheduler.Default);
     }
 
@@ -168,7 +169,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private void ToggleInPlaylist(WallpaperCardViewModel card)
     {
         var selected = LibraryWallpapers.Where(c => c.IsSelected).ToList();
-        if (selected.Count > 0)
+        if (selected.Count > 0 && selected.Contains(card))
         {
             if (card.IsInPlaylist)
             {
@@ -275,8 +276,8 @@ public partial class MainWindowViewModel : ViewModelBase
         var secs = GetIntervalSeconds();
 
         _playlistSaveCts?.Cancel();
-        _playlistSaveCts = new CancellationTokenSource();
-        var cts = _playlistSaveCts;
+        _playlistSaveCts?.Dispose();
+        var cts = _playlistSaveCts = new CancellationTokenSource();
         Task.Delay(200, cts.Token).ContinueWith(t =>
         {
             if (!t.IsCanceled) SavePlaylistState(paths, shuffle, secs);
