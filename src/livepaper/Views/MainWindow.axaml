@@ -614,6 +614,30 @@
                                 </Grid>
                             </Border>
 
+                            <TextBlock Text="SOURCES"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Muted}"
+                                       LetterSpacing="2"/>
+                            <Border Background="{StaticResource BgBase}" CornerRadius="10" Padding="16">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Wallpaper Engine path"
+                                               Foreground="{StaticResource TextColor}"/>
+                                    <Grid ColumnDefinitions="*,Auto" >
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding WallpaperEnginePath}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource Subtext}"
+                                                   ToolTip.Tip="{Binding WallpaperEnginePath}"
+                                                   Margin="0,0,8,0"/>
+                                        <Button Grid.Column="1"
+                                                Content="Browse"
+                                                Classes="ghost"
+                                                Command="{Binding PickWallpaperEngineFolderCommand}"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
                             <TextBlock Text="COMMAND PREVIEW"
                                        FontSize="11" FontWeight="SemiBold"
                                        Foreground="{StaticResource Muted}"

@@ -9,18 +9,14 @@ namespace livepaper.Scrapers;
 
 public static class WallpaperEngineScraper
 {
-    private static readonly string WorkshopPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".local/share/Steam/steamapps/workshop/content/431960");
-
-    public static async Task<List<WallpaperResult>> GetAllAsync()
+    public static async Task<List<WallpaperResult>> GetAllAsync(string workshopPath)
     {
         var results = new List<WallpaperResult>();
 
-        if (!Directory.Exists(WorkshopPath))
+        if (!Directory.Exists(workshopPath))
             return results;
 
-        foreach (var dir in Directory.GetDirectories(WorkshopPath))
+        foreach (var dir in Directory.GetDirectories(workshopPath))
         {
             var mp4Files = Directory.GetFiles(dir, "*.mp4", SearchOption.TopDirectoryOnly);
             if (mp4Files.Length == 0) continue;

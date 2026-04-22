@@ -49,6 +49,7 @@ public partial class MainWindow : Window
             _boundVm.PropertyChanged -= OnViewModelPropertyChanged;
             _boundVm.OpenSaveDialog = null;
             _boundVm.OpenLoadDialog = null;
+            _boundVm.PickFolderDialog = null;
             _boundVm = null;
         }
         if (DataContext is MainWindowViewModel vm)
@@ -56,6 +57,7 @@ public partial class MainWindow : Window
             vm.PropertyChanged += OnViewModelPropertyChanged;
             vm.OpenSaveDialog = OpenSaveDialogAsync;
             vm.OpenLoadDialog = OpenLoadDialogAsync;
+            vm.PickFolderDialog = PickFolderDialogAsync;
             _boundVm = vm;
         }
     }
@@ -69,6 +71,16 @@ public partial class MainWindow : Window
             FileTypeChoices = [JsonFileType]
         });
         return file?.Path.LocalPath;
+    }
+
+    private async Task<string?> PickFolderDialogAsync()
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Select Wallpaper Engine Workshop Folder",
+            AllowMultiple = false
+        });
+        return folders.Count > 0 ? folders[0].Path.LocalPath : null;
     }
 
     private async Task<string?> OpenLoadDialogAsync()

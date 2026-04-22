@@ -17,6 +17,9 @@ public class AppSettings
         get => _volume;
         set => _volume = Math.Clamp(value, 0, 100);
     }
+    public string WallpaperEnginePath { get; set; } = System.IO.Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".local/share/Steam/steamapps/workshop/content/431960");
     public bool AutoMute { get; set; } = false;
     public int AutoMuteDelayMs { get; set; } = 200;
     public int AutoUnmuteDelayMs { get; set; } = 2000;

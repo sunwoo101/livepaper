@@ -53,6 +53,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private int _loadGeneration;
     public bool NoMorePages { get; private set; }
 
+    // source settings
+    [ObservableProperty] private string _wallpaperEnginePath = "";
+
     // mpvpaper settings
     [ObservableProperty] private bool _loop;
     [ObservableProperty] private bool _noAudio;
@@ -105,6 +108,22 @@ public partial class MainWindowViewModel : ViewModelBase
         SettingsService.Save(_settings);
     }
 
+    partial void OnWallpaperEnginePathChanged(string value)
+    {
+        _settings.WallpaperEnginePath = value;
+        ((WallpaperEngineService)Sources.First(s => s is WallpaperEngineService)).WorkshopPath = value;
+        if (SelectedSource is WallpaperEngineService) _ = LoadWallpapersAsync();
+        SettingsService.Save(_settings);
+    }
+
+    [RelayCommand]
+    private async Task PickWallpaperEngineFolderAsync()
+    {
+        if (PickFolderDialog == null) return;
+        var path = await PickFolderDialog();
+        if (path != null) WallpaperEnginePath = path;
+    }
+
     partial void OnPlaylistShuffleChanged(bool value) => SavePlaylistStateDebounced();
     partial void OnIntervalHoursChanged(decimal value) => SavePlaylistStateDebounced();
     partial void OnIntervalMinutesChanged(decimal value) => SavePlaylistStateDebounced();
@@ -115,6 +134,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public Func<Task<string?>>? OpenSaveDialog { get; set; }
     public Func<Task<string?>>? OpenLoadDialog { get; set; }
+    public Func<Task<string?>>? PickFolderDialog { get; set; }
 
     private readonly Models.AppSettings _settings;
     private CancellationTokenSource? _volumeSaveCts;
@@ -141,7 +161,9 @@ public partial class MainWindowViewModel : ViewModelBase
         _autoMuteDelayMs = _settings.AutoMuteDelayMs;
         _autoUnmuteDelayMs = _settings.AutoUnmuteDelayMs;
         _autoMuteThresholdDb = (decimal)_settings.AutoMuteThresholdDb;
+        _wallpaperEnginePath = _settings.WallpaperEnginePath;
         _mpvOptionsPreview = _settings.BuildMpvOptions();
+        ((WallpaperEngineService)Sources.First(s => s is WallpaperEngineService)).WorkshopPath = _settings.WallpaperEnginePath;
 #pragma warning restore MVVMTK0034
 
         if (_settings.AutoMute)
