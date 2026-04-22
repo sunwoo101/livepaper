@@ -6,12 +6,18 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 
 namespace livepaper.Helpers;
 
 public static class PlayerHelper
 {
     private static Process? _current;
+    private static Timer? _playlistTimer;
+    private static List<string>? _timedPaths;
+    private static int _timedIndex;
+    private static string _timedOptions = "";
+    private static bool _timedShuffle;
 
     private static string IpcSocket => Path.Combine(
         Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") ?? Path.GetTempPath(),
@@ -34,8 +40,6 @@ public static class PlayerHelper
             return;
         }
 
-        // Write all but the last entry to a playlist file; pass the last as
-        // the positional arg so every video appears exactly once in order.
         var cacheDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".cache", "livepaper");
@@ -47,6 +51,49 @@ public static class PlayerHelper
         var shuffleFlag = shuffle ? " --shuffle" : "";
         var options = $"{mpvOptions} --playlist={playlistPath} --loop-playlist=inf{shuffleFlag}";
         _current = Launch(options, videoPaths[videoPaths.Count - 1]);
+    }
+
+    public static void ApplyTimedPlaylist(IReadOnlyList<string> paths, string mpvOptions, bool shuffle, int intervalSeconds)
+    {
+        KillAll();
+        if (paths.Count == 0) return;
+
+        var ordered = shuffle
+            ? paths.OrderBy(_ => Guid.NewGuid()).ToList()
+            : new List<string>(paths);
+
+        _timedPaths = ordered;
+        _timedIndex = 0;
+        _timedOptions = mpvOptions;
+        _timedShuffle = shuffle;
+        _current = Launch(mpvOptions, ordered[0]);
+
+        if (ordered.Count > 1 && intervalSeconds > 0)
+        {
+            var interval = TimeSpan.FromSeconds(intervalSeconds);
+            _playlistTimer = new Timer(_ =>
+            {
+                var p = _timedPaths;
+                if (p == null) return;
+                var opts = _timedOptions;
+                _timedIndex++;
+                if (_timedIndex >= p.Count)
+                {
+                    if (_timedShuffle)
+                    {
+                        var last = p[p.Count - 1];
+                        List<string> reshuffled;
+                        do { reshuffled = p.OrderBy(_ => Guid.NewGuid()).ToList(); }
+                        while (p.Count > 1 && reshuffled[0] == last);
+                        _timedPaths = p = reshuffled;
+                    }
+                    _timedIndex = 0;
+                }
+                KillCurrentProcess();
+                if (_timedPaths == null) return;
+                _current = Launch(opts, p[_timedIndex]);
+            }, null, interval, interval);
+        }
     }
 
     public static void Stop() => KillAll();
@@ -92,7 +139,7 @@ public static class PlayerHelper
         return process;
     }
 
-    private static void KillAll()
+    private static void KillCurrentProcess()
     {
         foreach (var proc in Process.GetProcessesByName("mpvpaper"))
         {
@@ -101,5 +148,13 @@ public static class PlayerHelper
         _current = null;
         var socketPath = IpcSocket;
         if (File.Exists(socketPath)) File.Delete(socketPath);
+    }
+
+    private static void KillAll()
+    {
+        _playlistTimer?.Dispose();
+        _playlistTimer = null;
+        _timedPaths = null;
+        KillCurrentProcess();
     }
 }

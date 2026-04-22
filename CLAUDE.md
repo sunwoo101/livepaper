@@ -33,19 +33,24 @@ dotnet publish -r linux-x64 --self-contained          # single binary release
 The app has three tabs:
 
 ### Browse Tab
-- Source selector (pill-style) to switch between motionbgs.com, moewalls.com, and Wallpaper Engine local
+- Source selector (pill-style) to switch between motionbgs.com, moewalls.com, Desktophut, and Wallpaper Engine local
 - Grid of wallpaper cards (thumbnail + title); clicking a thumbnail opens a fullscreen preview modal
 - Search box (enabled only for sources that support it)
 - Refresh button and loading bar (thin strip below the top bar, no layout shift)
-- "Download & Apply" saves to library and immediately applies via mpvpaper
+- Multi-select via Shift-click, Ctrl-click, Ctrl+A; "Download & Apply" downloads all selected, applies the clicked one
 
 ### Library Tab
-- Grid of all downloaded wallpapers
+- Grid of all downloaded wallpapers with checkmark badge (+ / ✓) to add/remove from playlist
+- Multi-select via Shift-click, Ctrl-click, Ctrl+A; checkmark on any selected card acts on all selected
 - "Play All" button with a "Shuffle" toggle — loops through the entire library via mpv playlist
 - Per-card: Apply (sets as wallpaper) and Delete (removes from disk and library)
+- **Playlist strip** (always visible at bottom): horizontal row of small thumbnails; hover to reveal ✕; drag to reorder
+  - ⚙ opens settings popup (Sequential/Shuffle order, Hours/Minutes/Seconds interval)
+  - 📂/💾 load/save playlist as JSON; ▶ Play starts timed cycling
+  - Playlist state auto-saved to `~/.config/livepaper/playlist_state.json` on every change
 
 ### Settings Tab
-- Playback: Loop, Mute audio, Disable cache
+- Playback: Loop, Mute audio, Disable cache, Volume slider (0–100, live via mpv IPC)
 - Memory: Demuxer max bytes / back bytes (NumericUpDown, integer MiB)
 - Rendering: Hardware decoding (auto / nvdec / vaapi / no)
 - Live mpv options preview
@@ -149,11 +154,15 @@ mpvpaper -o "<mpv-options>" '*' /path/to/wallpaper.mp4
 
 `LastSession` model:
 - `IsPlaylist` — was it a Play All session
+- `IsTimedPlaylist` — was it a custom timed playlist session
 - `IsRandom` — was it a `--random` session
 - `Paths` — video path(s) used
 - `Shuffle` — was shuffle enabled
+- `TimedIntervalSeconds` — switching interval for timed playlist
 
-`--restore` replays the session exactly: single video, playlist (with original paths + shuffle), or the specific video that `--random` picked.
+`--restore` replays the session exactly: single video, playlist (with original paths + shuffle), timed playlist, or the specific video that `--random` picked.
+
+**Timed playlist** (`PlayerHelper.ApplyTimedPlaylist`): uses `System.Threading.Timer` to cycle videos. Kills and relaunches mpvpaper on each tick. On shuffle mode, re-randomizes the order at the end of each full cycle, ensuring the first video of the new cycle is never the same as the last of the previous one.
 
 ## Distribution
 
@@ -180,6 +189,12 @@ rsvg-convert -w 512 -h 512 src/livepaper/Assets/livepaper.svg -o src/livepaper/A
 
 ### Commit style
 Short, title-case, no period. e.g. `Fix App Name`, `Add Shuffle Toggle`.
+
+## Avalonia Gotchas
+
+- **`NumericUpDown.Value` is `decimal?`** — binding to an `int` ViewModel property fails silently (the box appears but you can't type). Always use `decimal` for properties bound to `NumericUpDown`.
+- **Drag-and-drop in Avalonia 12** uses a completely different API from older versions and most online examples: `DataFormat.CreateInProcessFormat<T>`, `DataTransferItem.Create`, `DataTransfer.Add`, `DragDrop.DoDragDropAsync`, and `DragEventArgs.DataTransfer` (not `.Data`). For reordering within the same control, manual pointer tracking (`PointerPressed`/`PointerMoved`/`PointerReleased` at window level) is simpler and gives full control over visual feedback.
+- **Window-level pointer handler**: use `this.AddHandler(PointerPressedEvent, handler, RoutingStrategies.Bubble, handledEventsToo: true)` to catch all clicks including on buttons. Use `IsWithin(source, scrollViewer)` to scope which area the click belongs to, and `IsWithinButton(source, stopAt)` with a `stopAt` boundary to avoid walking past the target container.
 
 ## Key NuGet Packages
 

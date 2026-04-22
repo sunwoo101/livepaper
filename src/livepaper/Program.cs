@@ -29,7 +29,9 @@ sealed class Program
             var session = settings.LastSession;
             if (session != null)
             {
-                if (session.IsPlaylist && session.Paths.Count > 0)
+                if (session.IsTimedPlaylist && session.Paths.Count > 0)
+                    PlayerHelper.ApplyTimedPlaylist(session.Paths, settings.BuildMpvOptions(), session.Shuffle, session.TimedIntervalSeconds);
+                else if (session.IsPlaylist && session.Paths.Count > 0)
                     PlayerHelper.ApplyPlaylist(session.Paths, settings.BuildMpvPlaylistOptions(), session.Shuffle);
                 else if (session.Paths.Count > 0)
                     PlayerHelper.Apply(session.Paths[0], settings.BuildMpvOptions());
