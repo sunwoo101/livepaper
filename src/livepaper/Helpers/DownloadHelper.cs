@@ -22,7 +22,8 @@ public static class DownloadHelper
 
         if (File.Exists(detail.DownloadUrl))
         {
-            File.Copy(detail.DownloadUrl, videoPath, overwrite: true);
+            if (File.Exists(videoPath)) File.Delete(videoPath);
+            File.CreateSymbolicLink(videoPath, detail.DownloadUrl);
             progress?.Report(1.0);
         }
         else
@@ -36,7 +37,10 @@ public static class DownloadHelper
             try
             {
                 if (File.Exists(thumbnailUrl))
-                    File.Copy(thumbnailUrl, thumbPath, overwrite: true);
+                {
+                    if (File.Exists(thumbPath)) File.Delete(thumbPath);
+                    File.CreateSymbolicLink(thumbPath, thumbnailUrl);
+                }
                 else
                     await DownloadFileAsync(thumbnailUrl, thumbPath, null);
             }
