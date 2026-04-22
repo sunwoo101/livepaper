@@ -18,7 +18,6 @@ public static class WallpaperEngineScraper
 
         foreach (var mp4 in Directory.EnumerateFiles(workshopPath, "*.mp4", SearchOption.AllDirectories))
         {
-            if (Path.GetFileName(mp4).Equals("scene.pkg", StringComparison.OrdinalIgnoreCase)) continue;
             var dir = Path.GetDirectoryName(mp4)!;
             string title = await GetTitleAsync(dir) ?? Path.GetFileName(dir);
             string? thumbnail = FindThumbnail(dir);
