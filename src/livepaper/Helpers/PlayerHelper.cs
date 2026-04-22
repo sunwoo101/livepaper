@@ -103,8 +103,9 @@ public static class PlayerHelper
                         KillCurrentProcess();
                         if (_timedPaths == null) return;
                         _current = Launch(opts, p[_timedIndex]);
+                        _playlistTimer?.Change(interval, Timeout.InfiniteTimeSpan);
                     }
-                }, null, interval, interval);
+                }, null, interval, Timeout.InfiniteTimeSpan);
             }
         }
     }
