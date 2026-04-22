@@ -276,7 +276,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private void RemoveFromPlaylist(WallpaperCardViewModel card)
     {
         var selected = LibraryWallpapers.Where(c => c.IsSelected && c.IsInPlaylist).ToList();
-        if (selected.Count > 0)
+        if (selected.Count > 0 && card.IsSelected && card.IsInPlaylist)
         {
             foreach (var c in selected)
             {
@@ -308,6 +308,11 @@ public partial class MainWindowViewModel : ViewModelBase
         if (paths.Count == 0) return;
 
         int intervalSecs = GetIntervalSeconds();
+        if (intervalSecs == 0 && paths.Count > 1)
+        {
+            StatusMessage = "Set an interval greater than 0 to use timed playlists";
+            return;
+        }
         PlayerHelper.ApplyTimedPlaylist(paths, _settings.BuildMpvOptions(), PlaylistShuffle, intervalSecs);
         _settings.LastSession = new LastSession
         {
@@ -676,6 +681,7 @@ public partial class MainWindowViewModel : ViewModelBase
         DownloadProgress = 0;
         bool applied = false;
         int completed = 0;
+        int succeeded = 0;
 
         foreach (var target in toDownload)
         {
@@ -690,6 +696,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 if (target == card && !applied) { ApplyAndSave(existing.PageUrl); applied = true; }
                 StatusMessage = $"Applied: {target.Title}";
                 completed++;
+                succeeded++;
                 continue;
             }
 
@@ -708,6 +715,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
                 if (target == card && !applied) { ApplyAndSave(item.VideoPath); applied = true; }
                 StatusMessage = $"Applied: {target.Title}";
+                succeeded++;
             }
             catch (Exception ex)
             {
@@ -725,7 +733,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (toDownload.Count > 1)
         {
-            StatusMessage = $"Downloaded {completed}/{toDownload.Count} wallpapers";
+            StatusMessage = $"Downloaded {succeeded}/{toDownload.Count} wallpapers";
             foreach (var c in BrowseWallpapers) c.IsSelected = false;
             _lastBrowseSelectedIndex = -1;
         }
@@ -758,7 +766,8 @@ public partial class MainWindowViewModel : ViewModelBase
             }
         }
 
-        StatusMessage = deleted > 1 ? $"Deleted {deleted} wallpapers" : $"Deleted: {toDelete[0].Title}";
+        if (deleted > 0)
+            StatusMessage = deleted > 1 ? $"Deleted {deleted} wallpapers" : $"Deleted: {toDelete[0].Title}";
         _lastSelectedIndex = -1;
     }
 

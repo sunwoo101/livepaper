@@ -16,21 +16,17 @@ public static class WallpaperEngineScraper
         if (!Directory.Exists(workshopPath))
             return results;
 
-        foreach (var dir in Directory.GetDirectories(workshopPath))
+        foreach (var mp4 in Directory.EnumerateFiles(workshopPath, "*.mp4", SearchOption.AllDirectories))
         {
-            var mp4Files = Directory.GetFiles(dir, "*.mp4", SearchOption.TopDirectoryOnly);
-            if (mp4Files.Length == 0) continue;
-
-            string videoPath = mp4Files[0];
+            if (Path.GetFileName(mp4).Equals("scene.pkg", StringComparison.OrdinalIgnoreCase)) continue;
+            var dir = Path.GetDirectoryName(mp4)!;
             string title = await GetTitleAsync(dir) ?? Path.GetFileName(dir);
-
             string? thumbnail = FindThumbnail(dir);
-
             results.Add(new WallpaperResult
             {
                 Title = title,
                 ThumbnailUrl = thumbnail ?? "",
-                PageUrl = videoPath
+                PageUrl = mp4
             });
         }
 
