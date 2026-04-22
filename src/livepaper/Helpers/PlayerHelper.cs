@@ -109,7 +109,10 @@ public static class PlayerHelper
         }
     }
 
-    public static void Stop() => KillAll();
+    public static void Stop()
+    {
+        lock (_lock) { KillAll(); }
+    }
 
     public static void SetMute(bool mute)
     {
