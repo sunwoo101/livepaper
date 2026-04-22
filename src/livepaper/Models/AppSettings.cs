@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace livepaper.Models;
@@ -10,7 +11,12 @@ public class AppSettings
     public int DemuxerMaxBytes { get; set; } = 20;
     public int DemuxerMaxBackBytes { get; set; } = 5;
     public string HwDec { get; set; } = "auto";
-    public int Volume { get; set; } = 100;
+    private int _volume = 100;
+    public int Volume
+    {
+        get => _volume;
+        set => _volume = Math.Clamp(value, 0, 100);
+    }
     public LastSession? LastSession { get; set; }
 
     public string BuildMpvOptions()
