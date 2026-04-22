@@ -516,16 +516,17 @@
                                     <CheckBox Content="Mute when system audio plays"
                                               IsChecked="{Binding AutoMute}"
                                               Foreground="{StaticResource TextColor}"/>
-                                    <Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,8,Auto"
+                                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,12,Auto,12,Auto"
                                           IsEnabled="{Binding AutoMute}">
                                         <TextBlock Grid.Row="0" Grid.Column="0"
                                                    Text="Mute after"
                                                    VerticalAlignment="Center"
-                                                   Foreground="{StaticResource TextColor}"/>
+                                                   Foreground="{StaticResource TextColor}"
+                                                   Margin="0,0,16,0"/>
                                         <NumericUpDown Grid.Row="0" Grid.Column="1"
                                                        Value="{Binding AutoMuteDelayMs}"
                                                        Minimum="0" Maximum="30000" Increment="100"
-                                                       FormatString="0" Width="108"/>
+                                                       FormatString="0"/>
                                         <TextBlock Grid.Row="0" Grid.Column="2"
                                                    Text="ms" VerticalAlignment="Center"
                                                    Foreground="{StaticResource Subtext}"
@@ -533,13 +534,27 @@
                                         <TextBlock Grid.Row="2" Grid.Column="0"
                                                    Text="Unmute after"
                                                    VerticalAlignment="Center"
-                                                   Foreground="{StaticResource TextColor}"/>
+                                                   Foreground="{StaticResource TextColor}"
+                                                   Margin="0,0,16,0"/>
                                         <NumericUpDown Grid.Row="2" Grid.Column="1"
                                                        Value="{Binding AutoUnmuteDelayMs}"
                                                        Minimum="0" Maximum="30000" Increment="100"
-                                                       FormatString="0" Width="108"/>
+                                                       FormatString="0"/>
                                         <TextBlock Grid.Row="2" Grid.Column="2"
                                                    Text="ms" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource Subtext}"
+                                                   Margin="8,0,0,0"/>
+                                        <TextBlock Grid.Row="4" Grid.Column="0"
+                                                   Text="Minimum level"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextColor}"
+                                                   Margin="0,0,16,0"/>
+                                        <NumericUpDown Grid.Row="4" Grid.Column="1"
+                                                       Value="{Binding AutoMuteThresholdDb}"
+                                                       Minimum="-80" Maximum="0" Increment="1"
+                                                       FormatString="0"/>
+                                        <TextBlock Grid.Row="4" Grid.Column="2"
+                                                   Text="dB" VerticalAlignment="Center"
                                                    Foreground="{StaticResource Subtext}"
                                                    Margin="8,0,0,0"/>
                                     </Grid>

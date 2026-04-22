@@ -65,6 +65,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private bool _autoMute;
     [ObservableProperty] private decimal _autoMuteDelayMs;
     [ObservableProperty] private decimal _autoUnmuteDelayMs;
+    [ObservableProperty] private decimal _autoMuteThresholdDb;
 
     // Playlist state
     [ObservableProperty] private ObservableCollection<WallpaperCardViewModel> _playlistItems = [];
@@ -78,7 +79,7 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnAutoMuteChanged(bool value)
     {
         _settings.AutoMute = value;
-        if (value) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs);
+        if (value) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb);
         else AudioMonitor.Stop();
         SettingsService.Save(_settings);
     }
@@ -86,14 +87,21 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnAutoMuteDelayMsChanged(decimal value)
     {
         _settings.AutoMuteDelayMs = (int)value;
-        if (_settings.AutoMute) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs);
+        if (_settings.AutoMute) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb);
         SettingsService.Save(_settings);
     }
 
     partial void OnAutoUnmuteDelayMsChanged(decimal value)
     {
         _settings.AutoUnmuteDelayMs = (int)value;
-        if (_settings.AutoMute) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs);
+        if (_settings.AutoMute) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb);
+        SettingsService.Save(_settings);
+    }
+
+    partial void OnAutoMuteThresholdDbChanged(decimal value)
+    {
+        _settings.AutoMuteThresholdDb = (double)value;
+        if (_settings.AutoMute) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb);
         SettingsService.Save(_settings);
     }
 
@@ -132,11 +140,12 @@ public partial class MainWindowViewModel : ViewModelBase
         _autoMute = _settings.AutoMute;
         _autoMuteDelayMs = _settings.AutoMuteDelayMs;
         _autoUnmuteDelayMs = _settings.AutoUnmuteDelayMs;
+        _autoMuteThresholdDb = (decimal)_settings.AutoMuteThresholdDb;
         _mpvOptionsPreview = _settings.BuildMpvOptions();
 #pragma warning restore MVVMTK0034
 
         if (_settings.AutoMute)
-            AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs);
+            AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb);
 
         PlaylistItems.CollectionChanged += (_, _) =>
         {
@@ -195,6 +204,7 @@ public partial class MainWindowViewModel : ViewModelBase
         AutoMute = d.AutoMute;
         AutoMuteDelayMs = d.AutoMuteDelayMs;
         AutoUnmuteDelayMs = d.AutoUnmuteDelayMs;
+        AutoMuteThresholdDb = (decimal)d.AutoMuteThresholdDb;
     }
 
     // ── Playlist ──────────────────────────────────────────────────────────

@@ -144,12 +144,29 @@ mpvpaper -o "<mpv-options>" '*' /path/to/wallpaper.mp4
 
 `'*'` targets all Wayland outputs.
 
+`PlayerHelper.SetMute(bool)` sends a `set_property mute` command via the mpv IPC socket (same Unix domain socket used by `SetVolume`).
+
+## Auto-Mute (`AudioMonitor`)
+
+`AudioMonitor.Start/Stop` is called by the ViewModel when `AutoMute` is toggled or its settings change. Three concurrent tasks:
+
+1. **`WatchStreamsAsync`** — runs `pactl subscribe`, reconciles a `Dictionary<uint, CancellationTokenSource>` of active per-stream monitors on every sink-input event. Filters out mpv streams by `application.process.binary = "mpv"` / `application.name = "mpv"` and corked (paused) streams.
+
+2. **`MonitorStreamAsync`** (one per non-mpv stream) — runs `parec --monitor-stream=<id> --format=float32le --channels=1 --rate=8000 --raw`, reads 400-sample chunks (50ms), computes peak dBFS. Calls `Interlocked.Increment/Decrement` on `_aboveThresholdCount` as the stream crosses the threshold. `finally` block always decrements if the stream was above threshold when cancelled.
+
+3. **`WatchMuteAsync`** — polls `_aboveThresholdCount` every 50ms via `Task.Delay`. Counts consecutive ticks above/below threshold; fires `PlayerHelper.SetMute` once the configured delay is exceeded.
+
+**Critical invariant**: always use `--monitor-stream=<id>` targeting only specific non-mpv streams. Never use `@DEFAULT_MONITOR@` — it captures livepaper's own audio and causes oscillation (mute → silence → unmute → audio detected → mute...).
+
+**`_aboveThresholdCount` reset**: done via `Interlocked.Exchange(..., 0)` at the top of `WatchStreamsAsync` (not in `Stop()`), so that stream monitor `finally` blocks from the previous run can decrement safely without racing against new monitors.
+
 ## Settings & Session Persistence
 
 `AppSettings` (JSON at `~/.config/livepaper/settings.json`):
 - Playback flags: `Loop`, `NoAudio`, `DisableCache`
 - Memory: `DemuxerMaxBytes`, `DemuxerMaxBackBytes` (int, MiB)
 - `HwDec`: `"auto"` | `"nvdec"` | `"vaapi"` | `"no"` (no cuda — deprecated on modern NVIDIA)
+- Auto-mute: `AutoMute` (bool), `AutoMuteDelayMs` (default 200), `AutoUnmuteDelayMs` (default 2000), `AutoMuteThresholdDb` (default -50.0)
 - `LastSession`: tracks the last applied mode for `--restore`
 
 `LastSession` model:
