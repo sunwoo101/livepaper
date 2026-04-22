@@ -62,6 +62,9 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private string _hwDec = "";
     [ObservableProperty] private int _volume;
     [ObservableProperty] private string _mpvOptionsPreview = "";
+    [ObservableProperty] private bool _autoMute;
+    [ObservableProperty] private decimal _autoMuteDelayMs;
+    [ObservableProperty] private decimal _autoUnmuteDelayMs;
 
     // Playlist state
     [ObservableProperty] private ObservableCollection<WallpaperCardViewModel> _playlistItems = [];
@@ -71,6 +74,28 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private decimal _intervalHours = 0;
     [ObservableProperty] private decimal _intervalMinutes = 30;
     [ObservableProperty] private decimal _intervalSeconds = 0;
+
+    partial void OnAutoMuteChanged(bool value)
+    {
+        _settings.AutoMute = value;
+        if (value) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs);
+        else AudioMonitor.Stop();
+        SettingsService.Save(_settings);
+    }
+
+    partial void OnAutoMuteDelayMsChanged(decimal value)
+    {
+        _settings.AutoMuteDelayMs = (int)value;
+        if (_settings.AutoMute) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs);
+        SettingsService.Save(_settings);
+    }
+
+    partial void OnAutoUnmuteDelayMsChanged(decimal value)
+    {
+        _settings.AutoUnmuteDelayMs = (int)value;
+        if (_settings.AutoMute) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs);
+        SettingsService.Save(_settings);
+    }
 
     partial void OnPlaylistShuffleChanged(bool value) => SavePlaylistStateDebounced();
     partial void OnIntervalHoursChanged(decimal value) => SavePlaylistStateDebounced();
@@ -104,8 +129,14 @@ public partial class MainWindowViewModel : ViewModelBase
         _demuxerMaxBackBytes = _settings.DemuxerMaxBackBytes;
         _hwDec = _settings.HwDec;
         _volume = _settings.Volume;
+        _autoMute = _settings.AutoMute;
+        _autoMuteDelayMs = _settings.AutoMuteDelayMs;
+        _autoUnmuteDelayMs = _settings.AutoUnmuteDelayMs;
         _mpvOptionsPreview = _settings.BuildMpvOptions();
 #pragma warning restore MVVMTK0034
+
+        if (_settings.AutoMute)
+            AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs);
 
         PlaylistItems.CollectionChanged += (_, _) =>
         {
@@ -161,6 +192,9 @@ public partial class MainWindowViewModel : ViewModelBase
         DemuxerMaxBackBytes = d.DemuxerMaxBackBytes;
         HwDec = d.HwDec;
         Volume = d.Volume;
+        AutoMute = d.AutoMute;
+        AutoMuteDelayMs = d.AutoMuteDelayMs;
+        AutoUnmuteDelayMs = d.AutoUnmuteDelayMs;
     }
 
     // ── Playlist ──────────────────────────────────────────────────────────

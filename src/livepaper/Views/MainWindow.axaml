@@ -507,6 +507,45 @@
                                 </StackPanel>
                             </Border>
 
+                            <TextBlock Text="AUTO-MUTE"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Muted}"
+                                       LetterSpacing="2"/>
+                            <Border Background="{StaticResource BgBase}" CornerRadius="10" Padding="16">
+                                <StackPanel Spacing="12">
+                                    <CheckBox Content="Mute when system audio plays"
+                                              IsChecked="{Binding AutoMute}"
+                                              Foreground="{StaticResource TextColor}"/>
+                                    <Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,8,Auto"
+                                          IsEnabled="{Binding AutoMute}">
+                                        <TextBlock Grid.Row="0" Grid.Column="0"
+                                                   Text="Mute after"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextColor}"/>
+                                        <NumericUpDown Grid.Row="0" Grid.Column="1"
+                                                       Value="{Binding AutoMuteDelayMs}"
+                                                       Minimum="0" Maximum="30000" Increment="100"
+                                                       FormatString="0" Width="108"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="2"
+                                                   Text="ms" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource Subtext}"
+                                                   Margin="8,0,0,0"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="0"
+                                                   Text="Unmute after"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextColor}"/>
+                                        <NumericUpDown Grid.Row="2" Grid.Column="1"
+                                                       Value="{Binding AutoUnmuteDelayMs}"
+                                                       Minimum="0" Maximum="30000" Increment="100"
+                                                       FormatString="0" Width="108"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="2"
+                                                   Text="ms" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource Subtext}"
+                                                   Margin="8,0,0,0"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
                             <TextBlock Text="MEMORY"
                                        FontSize="11" FontWeight="SemiBold"
                                        Foreground="{StaticResource Muted}"

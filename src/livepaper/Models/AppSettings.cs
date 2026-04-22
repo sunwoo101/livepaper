@@ -17,6 +17,9 @@ public class AppSettings
         get => _volume;
         set => _volume = Math.Clamp(value, 0, 100);
     }
+    public bool AutoMute { get; set; } = false;
+    public int AutoMuteDelayMs { get; set; } = 500;
+    public int AutoUnmuteDelayMs { get; set; } = 2000;
     public LastSession? LastSession { get; set; }
 
     public string BuildMpvOptions()

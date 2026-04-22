@@ -111,6 +111,25 @@ public static class PlayerHelper
 
     public static void Stop() => KillAll();
 
+    public static void SetMute(bool mute)
+    {
+        var socketPath = IpcSocket;
+        if (!File.Exists(socketPath)) return;
+        try
+        {
+            using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            socket.SendTimeout = 500;
+            socket.ReceiveTimeout = 500;
+            socket.Connect(new UnixDomainSocketEndPoint(socketPath));
+            var cmd = JsonSerializer.Serialize(new { command = new object[] { "set_property", "mute", mute } });
+            socket.Send(Encoding.UTF8.GetBytes(cmd + "\n"));
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[PlayerHelper] SetMute failed: {ex.Message}");
+        }
+    }
+
     public static void SetVolume(int volume)
     {
         var socketPath = IpcSocket;
