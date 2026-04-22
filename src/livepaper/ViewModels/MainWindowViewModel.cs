@@ -57,6 +57,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private int _demuxerMaxBytes;
     [ObservableProperty] private int _demuxerMaxBackBytes;
     [ObservableProperty] private string _hwDec = "";
+    [ObservableProperty] private int _volume;
     [ObservableProperty] private string _mpvOptionsPreview = "";
 
     private readonly Models.AppSettings _settings;
@@ -74,6 +75,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _demuxerMaxBytes = _settings.DemuxerMaxBytes;
         _demuxerMaxBackBytes = _settings.DemuxerMaxBackBytes;
         _hwDec = _settings.HwDec;
+        _volume = _settings.Volume;
         _mpvOptionsPreview = _settings.BuildMpvOptions();
 #pragma warning restore MVVMTK0034
 
@@ -87,6 +89,11 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnDemuxerMaxBytesChanged(int value) => SaveAndRebuild();
     partial void OnDemuxerMaxBackBytesChanged(int value) => SaveAndRebuild();
     partial void OnHwDecChanged(string value) => SaveAndRebuild();
+    partial void OnVolumeChanged(int value)
+    {
+        SaveAndRebuild();
+        PlayerHelper.SetVolume(value);
+    }
 
     private void SaveAndRebuild()
     {
@@ -96,6 +103,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _settings.DemuxerMaxBytes = DemuxerMaxBytes;
         _settings.DemuxerMaxBackBytes = DemuxerMaxBackBytes;
         _settings.HwDec = HwDec;
+        _settings.Volume = Volume;
         MpvOptionsPreview = _settings.BuildMpvOptions();
         SettingsService.Save(_settings);
     }
@@ -110,6 +118,7 @@ public partial class MainWindowViewModel : ViewModelBase
         DemuxerMaxBytes = d.DemuxerMaxBytes;
         DemuxerMaxBackBytes = d.DemuxerMaxBackBytes;
         HwDec = d.HwDec;
+        Volume = d.Volume;
     }
 
     partial void OnSelectedSourceChanged(IBgsProvider value)

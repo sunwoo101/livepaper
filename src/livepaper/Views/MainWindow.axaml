@@ -234,6 +234,23 @@
                                               Foreground="{StaticResource TextColor}"/>
                                     <CheckBox Content="Disable cache" IsChecked="{Binding DisableCache}"
                                               Foreground="{StaticResource TextColor}"/>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4,0,0"
+                                          IsEnabled="{Binding !NoAudio}">
+                                        <TextBlock Grid.Column="0" Text="Volume"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextColor}"
+                                                   Width="80"/>
+                                        <Slider Grid.Column="1"
+                                                Minimum="0" Maximum="100"
+                                                Value="{Binding Volume}"
+                                                VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding Volume}"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource Subtext}"
+                                                   Width="30" TextAlignment="Right"
+                                                   Margin="8,0,0,0"/>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
 

@@ -3,12 +3,16 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.Sockets;
+using System.Text;
+using System.Text.Json;
 
 namespace livepaper.Helpers;
 
 public static class PlayerHelper
 {
     private static Process? _current;
+    private const string IpcSocket = "/tmp/livepaper-mpv.sock";
 
     public static void Apply(string videoPath, string mpvOptions)
     {
@@ -44,8 +48,22 @@ public static class PlayerHelper
 
     public static void Stop() => KillAll();
 
+    public static void SetVolume(int volume)
+    {
+        try
+        {
+            if (!File.Exists(IpcSocket)) return;
+            using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            socket.Connect(new UnixDomainSocketEndPoint(IpcSocket));
+            var cmd = JsonSerializer.Serialize(new { command = new object[] { "set_property", "volume", (double)volume } });
+            socket.Send(Encoding.UTF8.GetBytes(cmd + "\n"));
+        }
+        catch { }
+    }
+
     private static Process? Launch(string mpvOptions, string file)
     {
+        var options = $"{mpvOptions} --input-ipc-server={IpcSocket}";
         var psi = new ProcessStartInfo("setsid")
         {
             UseShellExecute = false,
@@ -54,7 +72,7 @@ public static class PlayerHelper
         };
         psi.ArgumentList.Add("mpvpaper");
         psi.ArgumentList.Add("-o");
-        psi.ArgumentList.Add(mpvOptions);
+        psi.ArgumentList.Add(options);
         psi.ArgumentList.Add("*");
         psi.ArgumentList.Add(file);
         var process = Process.Start(psi);
