@@ -471,7 +471,7 @@
                 <!-- ── Settings ── -->
                 <TabItem Header="Settings">
                     <ScrollViewer>
-                        <StackPanel Margin="28" Spacing="20" MaxWidth="500" HorizontalAlignment="Left">
+                        <StackPanel Margin="28" Spacing="20">
 
                             <TextBlock Text="Playback"
                                        FontSize="11" FontWeight="SemiBold"
@@ -620,7 +620,7 @@
                                        LetterSpacing="2"/>
                             <Border Background="{StaticResource BgBase}" CornerRadius="10" Padding="16">
                                 <StackPanel Spacing="8">
-                                    <TextBlock Text="Wallpaper Engine path"
+                                    <TextBlock Text="Wallpaper Engine workshop folder"
                                                Foreground="{StaticResource TextColor}"/>
                                     <Grid ColumnDefinitions="*,Auto" >
                                         <TextBlock Grid.Column="0"
