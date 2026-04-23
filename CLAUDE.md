@@ -12,6 +12,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `mpv` — underlying player used by mpvpaper
 - Wayland compositor (e.g. Hyprland, Sway, GNOME on Wayland)
 - `.NET SDK` — for building
+- `pactl` — PulseAudio/PipeWire CLI; required for Auto-Mute stream detection
+- `parec` — PulseAudio record tool; required for Auto-Mute audio level measurement
 
 ## Common Commands
 
@@ -27,6 +29,15 @@ dotnet publish -r linux-x64 --self-contained          # single binary release
 
 - `--restore` — re-applies the last session (single video, playlist, or random) without opening the UI. Useful for compositor autostart (e.g. `exec-once = livepaper --restore` in Hyprland).
 - `--random` — picks a random video from the library and applies it, then exits. Saves the picked video so `--restore` replays the same one.
+- `--monitor` — starts `AudioMonitor` using saved settings and blocks indefinitely. Spawned automatically as a detached process when the app closes with AutoMute enabled; killed when the app reopens.
+- `--action=<action>` — sends a command to the running session and exits. Intended for compositor keybinds. Actions:
+  - `toggle-mute` — toggle mpv mute
+  - `toggle-pause` — pause/resume mpv playback AND the timed playlist timer (timer resumes with remaining time preserved)
+  - `stop` — kill mpvpaper and signal the timed playlist timer to stop
+  - `play` — relaunch the last session exactly as saved
+  - `toggle-play` — stop if playing, play if stopped
+  - `next-wallpaper` — advance to next wallpaper in history/playlist
+  - `previous-wallpaper` — go back in wallpaper history
 
 ## UI Structure
 
@@ -150,15 +161,17 @@ mpvpaper -o "<mpv-options>" '*' /path/to/wallpaper.mp4
 
 `AudioMonitor.Start/Stop` is called by the ViewModel when `AutoMute` is toggled or its settings change. Three concurrent tasks:
 
-1. **`WatchStreamsAsync`** — runs `pactl subscribe`, reconciles a `Dictionary<uint, CancellationTokenSource>` of active per-stream monitors on every sink-input event. Filters out mpv streams by `application.process.binary = "mpv"` / `application.name = "mpv"` and corked (paused) streams.
+1. **`WatchStreamsAsync`** — runs `pactl subscribe` and maintains a `ConcurrentDictionary<uint, CancellationTokenSource>` of active per-stream monitors. On `'new'` events: parses the stream ID directly from the event line and starts `parec` immediately (optimistic); a background task verifies non-mpv after 100ms and cancels if it is mpv. On `'remove'` events: cancels the monitor immediately. Initial reconciliation via `GetNonMpvStreamIdsAsync` on startup. Filters out mpv streams (`application.process.binary = "mpv"` / `application.name = "mpv"`) and corked (paused) streams.
 
-2. **`MonitorStreamAsync`** (one per non-mpv stream) — runs `parec --monitor-stream=<id> --format=float32le --channels=1 --rate=8000 --raw`, reads 400-sample chunks (50ms), computes peak dBFS. Calls `Interlocked.Increment/Decrement` on `_aboveThresholdCount` as the stream crosses the threshold. `finally` block always decrements if the stream was above threshold when cancelled.
+2. **`MonitorStreamAsync`** (one per non-mpv stream) — runs `parec --monitor-stream=<id> --format=float32le --channels=1 --rate=8000 --raw`, reads 160-sample chunks (20ms), computes peak dBFS. Calls `Interlocked.Increment/Decrement` on `_aboveThresholdCount` as the stream crosses the threshold. `finally` block always decrements if the stream was above threshold when cancelled.
 
-3. **`WatchMuteAsync`** — polls `_aboveThresholdCount` every 50ms via `Task.Delay`. Counts consecutive ticks above/below threshold; fires `PlayerHelper.SetMute` once the configured delay is exceeded.
+3. **`WatchMuteAsync`** — polls `_aboveThresholdCount` every 20ms via `Task.Delay`. Counts consecutive ms above/below threshold; fires `PlayerHelper.SetMute` once the configured delay is exceeded.
 
 **Critical invariant**: always use `--monitor-stream=<id>` targeting only specific non-mpv streams. Never use `@DEFAULT_MONITOR@` — it captures livepaper's own audio and causes oscillation (mute → silence → unmute → audio detected → mute...).
 
 **`_aboveThresholdCount` reset**: done via `Interlocked.Exchange(..., 0)` at the top of `WatchStreamsAsync` (not in `Stop()`), so that stream monitor `finally` blocks from the previous run can decrement safely without racing against new monitors.
+
+**Daemon persistence**: when the app closes with AutoMute enabled, `SpawnDetachedMonitor()` launches `livepaper --monitor` via `setsid` and writes its PID to `~/.config/livepaper/monitor.pid`. On next app open, `KillDetachedMonitor()` reads the PID file and kills the daemon before the app's own `AudioMonitor` takes over.
 
 ## Settings & Session Persistence
 
@@ -166,7 +179,7 @@ mpvpaper -o "<mpv-options>" '*' /path/to/wallpaper.mp4
 - Playback flags: `Loop`, `NoAudio`, `DisableCache`
 - Memory: `DemuxerMaxBytes`, `DemuxerMaxBackBytes` (int, MiB)
 - `HwDec`: `"auto"` | `"nvdec"` | `"vaapi"` | `"no"` (no cuda — deprecated on modern NVIDIA)
-- Auto-mute: `AutoMute` (bool), `AutoMuteDelayMs` (default 200), `AutoUnmuteDelayMs` (default 2000), `AutoMuteThresholdDb` (default -50.0)
+- Auto-mute: `AutoMute` (bool, default false), `AutoMuteDelayMs` (default 200), `AutoUnmuteDelayMs` (default 2000), `AutoMuteThresholdDb` (default -70.0)
 - `LastSession`: tracks the last applied mode for `--restore`
 
 `LastSession` model:
@@ -179,7 +192,12 @@ mpvpaper -o "<mpv-options>" '*' /path/to/wallpaper.mp4
 
 `--restore` replays the session exactly: single video, playlist (with original paths + shuffle), timed playlist, or the specific video that `--random` picked.
 
-**Timed playlist** (`PlayerHelper.ApplyTimedPlaylist`): uses `System.Threading.Timer` to cycle videos. Kills and relaunches mpvpaper on each tick. On shuffle mode, re-randomizes the order at the end of each full cycle, ensuring the first video of the new cycle is never the same as the last of the previous one.
+**Timed playlist** (`PlayerHelper.ApplyTimedPlaylist`): uses `System.Threading.Timer` polling every 1 second. Tracks `_timedRemainingMs` in-memory; decrements each tick and relaunches mpvpaper when it hits zero. 1-second polling (instead of sleeping the full interval) allows stop/pause signals to be picked up promptly. On shuffle mode, re-randomizes the order at the end of each full cycle, ensuring the first video of the new cycle is never the same as the last of the previous one.
+
+**Stop/pause signals**: `TimedState` record includes `TimerStopped` and `TimerPaused` bool flags persisted to `timed_state.json`. Each timer tick calls `LoadTimedState()` to pick up changes written by CLI processes:
+- `Stop()` → `SignalTimerStop()` sets `TimerStopped=true`; timer exits without rescheduling within 1 second
+- `TogglePause()` → sends `cycle pause` to mpv IPC + flips `TimerPaused` in state file; timer freezes `_timedRemainingMs` while paused, resumes from where it left off on unpause
+- `NextWallpaper()` / `PreviousWallpaper()` reset `_timedRemainingMs` to the full interval after skipping
 
 ## Distribution
 
