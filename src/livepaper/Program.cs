@@ -48,7 +48,7 @@ sealed class Program
                     if (session != null)
                     {
                         if (session.IsTimedPlaylist && session.Paths.Count > 0)
-                            PlayerHelper.ApplyTimedPlaylist(ShuffleIfNeeded(session.Paths, session.Shuffle), s.BuildMpvOptions(), session.Shuffle, session.TimedIntervalSeconds);
+                            PlayerHelper.SpawnTimerDaemon();
                         else if (session.IsPlaylist && session.Paths.Count > 0)
                             PlayerHelper.ApplyPlaylist(session.Paths, s.BuildMpvPlaylistOptions(), session.Shuffle);
                         else if (session.Paths.Count > 0)
@@ -67,7 +67,7 @@ sealed class Program
                         if (tsession != null)
                         {
                             if (tsession.IsTimedPlaylist && tsession.Paths.Count > 0)
-                                PlayerHelper.ApplyTimedPlaylist(ShuffleIfNeeded(tsession.Paths, tsession.Shuffle), ts.BuildMpvOptions(), tsession.Shuffle, tsession.TimedIntervalSeconds);
+                                PlayerHelper.SpawnTimerDaemon();
                             else if (tsession.IsPlaylist && tsession.Paths.Count > 0)
                                 PlayerHelper.ApplyPlaylist(tsession.Paths, ts.BuildMpvPlaylistOptions(), tsession.Shuffle);
                             else if (tsession.Paths.Count > 0)
@@ -106,7 +106,8 @@ sealed class Program
                         else PlayerHelper.ApplyTimedPlaylist(ShuffleIfNeeded(session.Paths, session.Shuffle), settings.BuildMpvOptions(), session.Shuffle, session.TimedIntervalSeconds);
                     }
                     PlayerHelper.WriteTimerDaemonPid();
-                    Thread.Sleep(Timeout.Infinite);
+                    try { PlayerHelper.DaemonToken.WaitHandle.WaitOne(); }
+                    finally { PlayerHelper.DeleteTimerDaemonPid(); }
                 }
                 else if (session.IsPlaylist && session.Paths.Count > 0)
                     PlayerHelper.ApplyPlaylist(session.Paths, settings.BuildMpvPlaylistOptions(), session.Shuffle);

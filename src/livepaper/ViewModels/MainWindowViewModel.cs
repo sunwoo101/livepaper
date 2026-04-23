@@ -263,6 +263,9 @@ public partial class MainWindowViewModel : ViewModelBase
             SavePlaylistStateDebounced();
         };
 
+        PlayerHelper.OnTimedPlaylistStopped = () =>
+            Dispatcher.UIThread.Post(() => StatusMessage = "");
+
         LoadLibrary();
         RestorePlaylistState();
 

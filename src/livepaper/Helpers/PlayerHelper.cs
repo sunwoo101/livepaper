@@ -25,6 +25,8 @@ public static class PlayerHelper
     private static bool _timedTimerStopped;
     private static long _timedRemainingMs;
     private static readonly object _lock = new();
+    private static CancellationTokenSource? _daemonCts;
+    public static CancellationToken DaemonToken => _daemonCts?.Token ?? CancellationToken.None;
 
     public static bool IsPlaying => File.Exists(IpcSocket) && Process.GetProcessesByName("mpvpaper").Length > 0;
 
@@ -48,7 +50,7 @@ public static class PlayerHelper
             var pidText = File.ReadAllText(TimerDaemonPidPath).Trim();
             if (int.TryParse(pidText, out int pid))
             {
-                try { System.Diagnostics.Process.GetProcessById(pid).Kill(entireProcessTree: true); } catch { }
+                try { System.Diagnostics.Process.GetProcessById(pid).Kill(); } catch { }
             }
             File.Delete(TimerDaemonPidPath);
         }
@@ -57,6 +59,7 @@ public static class PlayerHelper
 
     public static void SpawnTimerDaemon()
     {
+        FlushTimedState(); // persist current remaining time before handing off
         KillTimerDaemon();
         try
         {
@@ -91,11 +94,23 @@ public static class PlayerHelper
         catch { }
     }
 
+    public static void DeleteTimerDaemonPid()
+    {
+        try { File.Delete(TimerDaemonPidPath); } catch { }
+    }
+
+    public static void FlushTimedState()
+    {
+        lock (_lock) { SaveTimedState(); }
+    }
+
+    public static Action? OnTimedPlaylistStopped;
+
     private record TimedState(
         List<string> Paths, int Index,
         string Options, bool Shuffle, int IntervalSeconds,
         List<string> History, int HistoryIndex,
-        bool TimerPaused = false, bool TimerStopped = false);
+        bool TimerPaused = false, bool TimerStopped = false, long RemainingMs = 0);
 
     private static void SaveTimedState()
     {
@@ -106,7 +121,7 @@ public static class PlayerHelper
                 _timedPaths, _timedIndex,
                 _timedOptions, _timedShuffle, (int)_timedInterval.TotalSeconds,
                 _history, _historyIndex,
-                _timedTimerPaused, _timedTimerStopped);
+                _timedTimerPaused, _timedTimerStopped, _timedRemainingMs);
             var path = TimedStatePath;
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, JsonSerializer.Serialize(state));
@@ -130,6 +145,7 @@ public static class PlayerHelper
             _historyIndex = state.HistoryIndex;
             _timedTimerPaused = state.TimerPaused;
             _timedTimerStopped = state.TimerStopped;
+            _timedRemainingMs = state.RemainingMs > 0 ? state.RemainingMs : (long)_timedInterval.TotalMilliseconds;
             return true;
         }
         catch { return false; }
@@ -231,7 +247,7 @@ public static class PlayerHelper
 
             _timedTimerStopped = false;
             _timedTimerPaused = false;
-            _timedRemainingMs = (long)_timedInterval.TotalMilliseconds;
+            // _timedRemainingMs is restored from state — preserves the countdown
 
             if (_timedPaths.Count > 1 && _timedInterval.TotalSeconds > 0)
                 StartTimedTimer();
@@ -242,6 +258,9 @@ public static class PlayerHelper
 
     private static void StartTimedTimer()
     {
+        _daemonCts?.Dispose();
+        _daemonCts = new CancellationTokenSource();
+
         _playlistTimer = new Timer(_ =>
         {
             lock (_lock)
@@ -257,6 +276,8 @@ public static class PlayerHelper
                     _historyIndex = -1;
                     _playlistTimer?.Dispose();
                     _playlistTimer = null;
+                    _daemonCts?.Cancel();
+                    OnTimedPlaylistStopped?.Invoke();
                     return;
                 }
 
