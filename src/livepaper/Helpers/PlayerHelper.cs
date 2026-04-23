@@ -115,6 +115,25 @@ public static class PlayerHelper
         lock (_lock) { KillAll(); }
     }
 
+    public static void SendCommand(params object[] args)
+    {
+        var socketPath = IpcSocket;
+        if (!File.Exists(socketPath)) return;
+        try
+        {
+            using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            socket.SendTimeout = 500;
+            socket.ReceiveTimeout = 500;
+            socket.Connect(new UnixDomainSocketEndPoint(socketPath));
+            var cmd = JsonSerializer.Serialize(new { command = args });
+            socket.Send(Encoding.UTF8.GetBytes(cmd + "\n"));
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[PlayerHelper] SendCommand failed: {ex.Message}");
+        }
+    }
+
     public static void SetMute(bool mute)
     {
         var socketPath = IpcSocket;

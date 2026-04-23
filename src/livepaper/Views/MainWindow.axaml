@@ -652,6 +652,52 @@
                                            Foreground="{StaticResource Accent}"/>
                             </Border>
 
+                            <TextBlock Text="KEYBINDS"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Muted}"
+                                       LetterSpacing="2"/>
+                            <Border Background="{StaticResource BgCrust}" CornerRadius="10" Padding="14">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="Bind these commands in your compositor config:"
+                                               Foreground="{StaticResource Subtext}"
+                                               FontSize="12"/>
+                                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,8,Auto,8,Auto,8,Auto">
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Toggle mute"
+                                                   Foreground="{StaticResource TextColor}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1"
+                                                   Text="livepaper --action=toggle-mute"
+                                                   FontFamily="Monospace" FontSize="12"
+                                                   Foreground="{StaticResource Accent}"
+                                                   TextWrapping="Wrap"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Toggle pause"
+                                                   Foreground="{StaticResource TextColor}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="1"
+                                                   Text="livepaper --action=toggle-pause"
+                                                   FontFamily="Monospace" FontSize="12"
+                                                   Foreground="{StaticResource Accent}"
+                                                   TextWrapping="Wrap"/>
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Stop"
+                                                   Foreground="{StaticResource TextColor}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                        <TextBlock Grid.Row="4" Grid.Column="1"
+                                                   Text="livepaper --action=stop"
+                                                   FontFamily="Monospace" FontSize="12"
+                                                   Foreground="{StaticResource Accent}"
+                                                   TextWrapping="Wrap"/>
+                                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Play (restore)"
+                                                   Foreground="{StaticResource TextColor}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                        <TextBlock Grid.Row="6" Grid.Column="1"
+                                                   Text="livepaper --action=play"
+                                                   FontFamily="Monospace" FontSize="12"
+                                                   Foreground="{StaticResource Accent}"
+                                                   TextWrapping="Wrap"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
                             <Button Content="Reset to Defaults"
                                     Classes="ghost"
                                     Command="{Binding ResetMpvOptionsCommand}"/>

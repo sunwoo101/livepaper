@@ -17,6 +17,37 @@ sealed class Program
             return;
         }
 
+        var action = args.FirstOrDefault(a => a.StartsWith("--action="))?.Substring("--action=".Length);
+        if (action != null)
+        {
+            switch (action)
+            {
+                case "toggle-mute":
+                    PlayerHelper.SendCommand("cycle", "mute");
+                    break;
+                case "toggle-pause":
+                    PlayerHelper.SendCommand("cycle", "pause");
+                    break;
+                case "stop":
+                    PlayerHelper.Stop();
+                    break;
+                case "play":
+                    var s = SettingsService.Load();
+                    var session = s.LastSession;
+                    if (session != null)
+                    {
+                        if (session.IsTimedPlaylist && session.Paths.Count > 0)
+                            PlayerHelper.ApplyTimedPlaylist(session.Paths, s.BuildMpvOptions(), session.Shuffle, session.TimedIntervalSeconds);
+                        else if (session.IsPlaylist && session.Paths.Count > 0)
+                            PlayerHelper.ApplyPlaylist(session.Paths, s.BuildMpvPlaylistOptions(), session.Shuffle);
+                        else if (session.Paths.Count > 0)
+                            PlayerHelper.Apply(session.Paths[0], s.BuildMpvOptions());
+                    }
+                    break;
+            }
+            return;
+        }
+
         if (args.Contains("--random"))
         {
             ApplyRandom();
