@@ -29,6 +29,50 @@ public static class PlayerHelper
         Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") ?? Path.GetTempPath(),
         "livepaper", "mpv.sock");
 
+    private static string TimedStatePath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".config", "livepaper", "timed_state.json");
+
+    private record TimedState(
+        List<string> Paths, int Index,
+        string Options, bool Shuffle, int IntervalSeconds,
+        List<string> History, int HistoryIndex);
+
+    private static void SaveTimedState()
+    {
+        if (_timedPaths == null || _history == null) return;
+        try
+        {
+            var state = new TimedState(
+                _timedPaths, _timedIndex,
+                _timedOptions, _timedShuffle, (int)_timedInterval.TotalSeconds,
+                _history, _historyIndex);
+            var path = TimedStatePath;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, JsonSerializer.Serialize(state));
+        }
+        catch { }
+    }
+
+    private static bool LoadTimedState()
+    {
+        try
+        {
+            if (!File.Exists(TimedStatePath)) return false;
+            var state = JsonSerializer.Deserialize<TimedState>(File.ReadAllText(TimedStatePath));
+            if (state == null || state.Paths.Count == 0) return false;
+            _timedPaths = state.Paths;
+            _timedIndex = state.Index;
+            _timedOptions = state.Options;
+            _timedShuffle = state.Shuffle;
+            _timedInterval = TimeSpan.FromSeconds(state.IntervalSeconds);
+            _history = state.History;
+            _historyIndex = state.HistoryIndex;
+            return true;
+        }
+        catch { return false; }
+    }
+
     public static void Apply(string videoPath, string mpvOptions)
     {
         lock (_lock)
@@ -80,13 +124,14 @@ public static class PlayerHelper
             _timedIndex = 0;
             _timedOptions = mpvOptions;
             _timedShuffle = shuffle;
+            _timedInterval = TimeSpan.FromSeconds(intervalSeconds);
             _history = [ordered[0]];
             _historyIndex = 0;
             _current = Launch(mpvOptions, ordered[0]);
+            SaveTimedState();
 
             if (ordered.Count > 1 && intervalSeconds > 0)
             {
-                _timedInterval = TimeSpan.FromSeconds(intervalSeconds);
                 _playlistTimer = new Timer(_ =>
                 {
                     lock (_lock)
@@ -96,6 +141,7 @@ public static class PlayerHelper
                         if (next == null) return;
                         KillCurrentProcess();
                         _current = Launch(_timedOptions, next);
+                        SaveTimedState();
                         _playlistTimer?.Change(_timedInterval, Timeout.InfiniteTimeSpan);
                     }
                 }, null, _timedInterval, Timeout.InfiniteTimeSpan);
@@ -107,7 +153,7 @@ public static class PlayerHelper
     {
         lock (_lock)
         {
-            if (_timedPaths == null)
+            if (_timedPaths == null && !LoadTimedState())
             {
                 SendCommand("playlist-next");
                 return;
@@ -116,7 +162,7 @@ public static class PlayerHelper
             if (next == null) return;
             KillCurrentProcess();
             _current = Launch(_timedOptions, next);
-            _playlistTimer?.Change(_timedInterval, Timeout.InfiniteTimeSpan);
+            SaveTimedState();
         }
     }
 
@@ -124,7 +170,7 @@ public static class PlayerHelper
     {
         lock (_lock)
         {
-            if (_timedPaths == null)
+            if (_timedPaths == null && !LoadTimedState())
             {
                 SendCommand("playlist-prev");
                 return;
@@ -133,7 +179,7 @@ public static class PlayerHelper
             _historyIndex--;
             KillCurrentProcess();
             _current = Launch(_timedOptions, _history[_historyIndex]);
-            _playlistTimer?.Change(_timedInterval, Timeout.InfiniteTimeSpan);
+            SaveTimedState();
         }
     }
 
