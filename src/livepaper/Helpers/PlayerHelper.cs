@@ -21,6 +21,9 @@ public static class PlayerHelper
     private static TimeSpan _timedInterval;
     private static List<string>? _history;
     private static int _historyIndex = -1;
+    private static bool _timedTimerPaused;
+    private static bool _timedTimerStopped;
+    private static long _timedRemainingMs;
     private static readonly object _lock = new();
 
     public static bool IsPlaying => File.Exists(IpcSocket);
@@ -36,7 +39,8 @@ public static class PlayerHelper
     private record TimedState(
         List<string> Paths, int Index,
         string Options, bool Shuffle, int IntervalSeconds,
-        List<string> History, int HistoryIndex);
+        List<string> History, int HistoryIndex,
+        bool TimerPaused = false, bool TimerStopped = false);
 
     private static void SaveTimedState()
     {
@@ -46,7 +50,8 @@ public static class PlayerHelper
             var state = new TimedState(
                 _timedPaths, _timedIndex,
                 _timedOptions, _timedShuffle, (int)_timedInterval.TotalSeconds,
-                _history, _historyIndex);
+                _history, _historyIndex,
+                _timedTimerPaused, _timedTimerStopped);
             var path = TimedStatePath;
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, JsonSerializer.Serialize(state));
@@ -68,6 +73,8 @@ public static class PlayerHelper
             _timedInterval = TimeSpan.FromSeconds(state.IntervalSeconds);
             _history = state.History;
             _historyIndex = state.HistoryIndex;
+            _timedTimerPaused = state.TimerPaused;
+            _timedTimerStopped = state.TimerStopped;
             return true;
         }
         catch { return false; }
@@ -127,6 +134,9 @@ public static class PlayerHelper
             _timedOptions = mpvOptions;
             _timedShuffle = shuffle;
             _timedInterval = TimeSpan.FromSeconds(intervalSeconds);
+            _timedTimerPaused = false;
+            _timedTimerStopped = false;
+            _timedRemainingMs = (long)_timedInterval.TotalMilliseconds;
             _history = [ordered[0]];
             _historyIndex = 0;
             _current = Launch(mpvOptions, ordered[0]);
@@ -138,17 +148,42 @@ public static class PlayerHelper
                 {
                     lock (_lock)
                     {
-                        // Sync with any external state changes (e.g. --action=previous-wallpaper)
+                        // Sync with any external state changes (prev/next/pause/stop signals)
                         LoadTimedState();
                         if (_timedPaths == null) return;
+
+                        if (_timedTimerStopped)
+                        {
+                            _timedPaths = null;
+                            _history = null;
+                            _historyIndex = -1;
+                            _playlistTimer?.Dispose();
+                            _playlistTimer = null;
+                            return;
+                        }
+
+                        if (_timedTimerPaused)
+                        {
+                            _playlistTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
+                            return;
+                        }
+
+                        _timedRemainingMs -= 1000;
+                        if (_timedRemainingMs > 0)
+                        {
+                            _playlistTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
+                            return;
+                        }
+
                         var next = AdvanceToNext();
                         if (next == null) return;
                         KillCurrentProcess();
                         _current = Launch(_timedOptions, next);
+                        _timedRemainingMs = (long)_timedInterval.TotalMilliseconds;
                         SaveTimedState();
-                        _playlistTimer?.Change(_timedInterval, Timeout.InfiniteTimeSpan);
+                        _playlistTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
                     }
-                }, null, _timedInterval, Timeout.InfiniteTimeSpan);
+                }, null, TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
             }
         }
     }
@@ -166,6 +201,7 @@ public static class PlayerHelper
             if (next == null) return;
             KillCurrentProcess();
             _current = Launch(_timedOptions, next);
+            _timedRemainingMs = (long)_timedInterval.TotalMilliseconds;
             SaveTimedState();
         }
     }
@@ -183,13 +219,35 @@ public static class PlayerHelper
             _historyIndex--;
             KillCurrentProcess();
             _current = Launch(_timedOptions, _history[_historyIndex]);
+            _timedRemainingMs = (long)_timedInterval.TotalMilliseconds;
             SaveTimedState();
         }
     }
 
     public static void Stop()
     {
-        lock (_lock) { KillAll(); }
+        lock (_lock)
+        {
+            KillAll();
+            SignalTimerStop();
+        }
+    }
+
+    public static void TogglePause()
+    {
+        lock (_lock)
+        {
+            SendCommand("cycle", "pause");
+            try
+            {
+                if (!File.Exists(TimedStatePath)) return;
+                var state = JsonSerializer.Deserialize<TimedState>(File.ReadAllText(TimedStatePath));
+                if (state == null) return;
+                var updated = state with { TimerPaused = !state.TimerPaused, TimerStopped = false };
+                File.WriteAllText(TimedStatePath, JsonSerializer.Serialize(updated));
+            }
+            catch { }
+        }
     }
 
     public static void SendCommand(params object[] args)
@@ -296,6 +354,19 @@ public static class PlayerHelper
         try { File.Delete(TimedStatePath); } catch { }
     }
 
+    private static void SignalTimerStop()
+    {
+        try
+        {
+            if (!File.Exists(TimedStatePath)) return;
+            var state = JsonSerializer.Deserialize<TimedState>(File.ReadAllText(TimedStatePath));
+            if (state == null) return;
+            var updated = state with { TimerStopped = true };
+            File.WriteAllText(TimedStatePath, JsonSerializer.Serialize(updated));
+        }
+        catch { }
+    }
+
     private static void KillAll()
     {
         _playlistTimer?.Dispose();
@@ -303,6 +374,9 @@ public static class PlayerHelper
         _timedPaths = null;
         _history = null;
         _historyIndex = -1;
+        _timedTimerPaused = false;
+        _timedTimerStopped = false;
+        _timedRemainingMs = 0;
         KillCurrentProcess();
     }
 }

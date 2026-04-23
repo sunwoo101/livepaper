@@ -23,7 +23,7 @@ public class AppSettings
     public bool AutoMute { get; set; } = false;
     public int AutoMuteDelayMs { get; set; } = 200;
     public int AutoUnmuteDelayMs { get; set; } = 2000;
-    public double AutoMuteThresholdDb { get; set; } = -50.0;
+    public double AutoMuteThresholdDb { get; set; } = -70.0;
     public LastSession? LastSession { get; set; }
 
     public string BuildMpvOptions()

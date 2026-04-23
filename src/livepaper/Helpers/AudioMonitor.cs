@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -8,9 +10,56 @@ namespace livepaper.Helpers;
 
 public static class AudioMonitor
 {
-    // 8000 Hz, 400 samples = 50ms per poll tick per stream
+    private static string MonitorPidPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".config", "livepaper", "monitor.pid");
+
+    public static void KillDetachedMonitor()
+    {
+        try
+        {
+            if (!File.Exists(MonitorPidPath)) return;
+            var pidText = File.ReadAllText(MonitorPidPath).Trim();
+            if (int.TryParse(pidText, out int pid))
+            {
+                try { Process.GetProcessById(pid).Kill(); } catch { }
+            }
+            File.Delete(MonitorPidPath);
+        }
+        catch { }
+    }
+
+    public static void SpawnDetachedMonitor()
+    {
+        KillDetachedMonitor();
+        try
+        {
+            var exe = Process.GetCurrentProcess().MainModule?.FileName;
+            if (string.IsNullOrEmpty(exe)) return;
+            var psi = new ProcessStartInfo("setsid")
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            psi.ArgumentList.Add(exe);
+            psi.ArgumentList.Add("--monitor");
+            var proc = Process.Start(psi);
+            if (proc != null)
+            {
+                proc.BeginOutputReadLine();
+                proc.BeginErrorReadLine();
+                var path = MonitorPidPath;
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllText(path, proc.Id.ToString());
+            }
+        }
+        catch { }
+    }
+
+    // 8000 Hz, 160 samples = 20ms per poll tick per stream
     private const int SampleRateHz = 8000;
-    private const int ChunkSamples = 400;
+    private const int ChunkSamples = 160;
     private const int ChunkBytes = ChunkSamples * sizeof(float);
     private const int MsPerTick = ChunkSamples * 1000 / SampleRateHz;
 
@@ -40,35 +89,51 @@ public static class AudioMonitor
     }
 
     // Watches pactl subscribe and maintains one parec --monitor-stream per non-mpv stream.
-    // Each stream monitor independently updates _aboveThresholdCount.
+    // Parses stream IDs directly from event lines for immediate start; verifies non-mpv in background.
     private static async Task WatchStreamsAsync(double thresholdDb, CancellationToken ct)
     {
         Interlocked.Exchange(ref _aboveThresholdCount, 0);
-        var activeMonitors = new Dictionary<uint, CancellationTokenSource>();
+        var activeMonitors = new ConcurrentDictionary<uint, CancellationTokenSource>();
 
-        async Task ReconcileAsync()
+        void StartMonitor(uint id)
         {
-            var current = await GetNonMpvStreamIdsAsync(ct);
-            var currentSet = new HashSet<uint>(current);
-
-            foreach (var id in current)
+            var streamCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            if (!activeMonitors.TryAdd(id, streamCts))
             {
-                if (activeMonitors.ContainsKey(id)) continue;
-                var streamCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                activeMonitors[id] = streamCts;
-                _ = Task.Run(() => MonitorStreamAsync(id, thresholdDb, streamCts.Token));
+                streamCts.Dispose();
+                return;
             }
-
-            foreach (var id in new List<uint>(activeMonitors.Keys))
+            _ = Task.Run(() => MonitorStreamAsync(id, thresholdDb, streamCts.Token));
+            // Verify not mpv in background; cancel + remove if it is
+            _ = Task.Run(async () =>
             {
-                if (currentSet.Contains(id)) continue;
-                activeMonitors[id].Cancel();
-                activeMonitors[id].Dispose();
-                activeMonitors.Remove(id);
+                try
+                {
+                    await Task.Delay(100, ct);
+                    var nonMpv = await GetNonMpvStreamIdsAsync(ct);
+                    if (!nonMpv.Contains(id) && activeMonitors.TryRemove(id, out var cts))
+                    {
+                        cts.Cancel();
+                        cts.Dispose();
+                    }
+                }
+                catch (OperationCanceledException) { }
+            });
+        }
+
+        void StopMonitor(uint id)
+        {
+            if (activeMonitors.TryRemove(id, out var cts))
+            {
+                cts.Cancel();
+                cts.Dispose();
             }
         }
 
-        await ReconcileAsync();
+        // Initial reconciliation for streams already active before we started
+        var initial = await GetNonMpvStreamIdsAsync(ct);
+        foreach (var id in initial)
+            StartMonitor(id);
 
         var psi = new ProcessStartInfo("pactl")
         {
@@ -90,7 +155,11 @@ public static class AudioMonitor
                 var line = await proc.StandardOutput.ReadLineAsync(ct);
                 if (line == null) break;
                 if (!line.Contains("sink-input")) continue;
-                await ReconcileAsync();
+
+                if (line.Contains("'new'") && TryParseStreamId(line, out uint newId))
+                    StartMonitor(newId);
+                else if (line.Contains("'remove'") && TryParseStreamId(line, out uint removeId))
+                    StopMonitor(removeId);
             }
         }
         catch (OperationCanceledException) { }
@@ -164,7 +233,7 @@ public static class AudioMonitor
         }
     }
 
-    // Polls _aboveThresholdCount every 50ms and applies mute/unmute with configured delays.
+    // Polls _aboveThresholdCount every 20ms and applies mute/unmute with configured delays.
     private static async Task WatchMuteAsync(int muteDelayMs, int unmuteDelayMs, CancellationToken ct)
     {
         int muteTicksNeeded = Math.Max(1, muteDelayMs / MsPerTick);
@@ -252,5 +321,15 @@ public static class AudioMonitor
                 result.Add(id);
         }
         return result;
+    }
+
+    // Parses "Event 'new' on sink-input #42" → 42
+    private static bool TryParseStreamId(string line, out uint id)
+    {
+        var hashIdx = line.LastIndexOf('#');
+        if (hashIdx >= 0 && uint.TryParse(line.AsSpan(hashIdx + 1).Trim(), out id))
+            return true;
+        id = 0;
+        return false;
     }
 }

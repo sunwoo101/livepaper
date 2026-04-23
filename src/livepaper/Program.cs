@@ -1,6 +1,7 @@
 using Avalonia;
 using System;
 using System.Linq;
+using System.Threading;
 using livepaper.Helpers;
 using livepaper.Models;
 
@@ -17,6 +18,15 @@ sealed class Program
             return;
         }
 
+        if (args.Contains("--monitor"))
+        {
+            var ms = SettingsService.Load();
+            if (ms.AutoMute)
+                AudioMonitor.Start(ms.AutoMuteDelayMs, ms.AutoUnmuteDelayMs, ms.AutoMuteThresholdDb);
+            Thread.Sleep(Timeout.Infinite);
+            return;
+        }
+
         var action = args.FirstOrDefault(a => a.StartsWith("--action="))?.Substring("--action=".Length);
         if (action != null)
         {
@@ -26,7 +36,7 @@ sealed class Program
                     PlayerHelper.SendCommand("cycle", "mute");
                     break;
                 case "toggle-pause":
-                    PlayerHelper.SendCommand("cycle", "pause");
+                    PlayerHelper.TogglePause();
                     break;
                 case "stop":
                     PlayerHelper.Stop();
