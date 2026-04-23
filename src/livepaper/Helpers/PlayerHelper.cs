@@ -26,7 +26,7 @@ public static class PlayerHelper
     private static long _timedRemainingMs;
     private static readonly object _lock = new();
 
-    public static bool IsPlaying => File.Exists(IpcSocket);
+    public static bool IsPlaying => File.Exists(IpcSocket) && Process.GetProcessesByName("mpvpaper").Length > 0;
 
     private static string IpcSocket => Path.Combine(
         Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") ?? Path.GetTempPath(),
