@@ -78,6 +78,7 @@ public static class PlayerHelper
         lock (_lock)
         {
             KillAll();
+            ClearTimedStateFile();
             _current = Launch(mpvOptions, videoPath);
         }
     }
@@ -88,6 +89,7 @@ public static class PlayerHelper
         lock (_lock)
         {
             KillAll();
+            ClearTimedStateFile();
 
             if (videoPaths.Count == 1)
             {
@@ -207,43 +209,11 @@ public static class PlayerHelper
         }
     }
 
-    public static void SetMute(bool mute)
-    {
-        var socketPath = IpcSocket;
-        if (!File.Exists(socketPath)) return;
-        try
-        {
-            using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-            socket.SendTimeout = 500;
-            socket.ReceiveTimeout = 500;
-            socket.Connect(new UnixDomainSocketEndPoint(socketPath));
-            var cmd = JsonSerializer.Serialize(new { command = new object[] { "set_property", "mute", mute } });
-            socket.Send(Encoding.UTF8.GetBytes(cmd + "\n"));
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[PlayerHelper] SetMute failed: {ex.Message}");
-        }
-    }
+    public static void SetMute(bool mute) =>
+        SendCommand("set_property", "mute", mute);
 
-    public static void SetVolume(int volume)
-    {
-        var socketPath = IpcSocket;
-        if (!File.Exists(socketPath)) return;
-        try
-        {
-            using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-            socket.SendTimeout = 500;
-            socket.ReceiveTimeout = 500;
-            socket.Connect(new UnixDomainSocketEndPoint(socketPath));
-            var cmd = JsonSerializer.Serialize(new { command = new object[] { "set_property", "volume", (double)volume } });
-            socket.Send(Encoding.UTF8.GetBytes(cmd + "\n"));
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[PlayerHelper] SetVolume failed: {ex.Message}");
-        }
-    }
+    public static void SetVolume(int volume) =>
+        SendCommand("set_property", "volume", (double)volume);
 
     // Returns the next wallpaper path, extending history if needed.
     private static string? AdvanceToNext()
@@ -275,6 +245,7 @@ public static class PlayerHelper
         if (_history != null)
         {
             _history.Add(path);
+            if (_history.Count > 500) _history.RemoveAt(0);
             _historyIndex = _history.Count - 1;
         }
         return path;
@@ -316,6 +287,11 @@ public static class PlayerHelper
         _current = null;
         var socketPath = IpcSocket;
         if (File.Exists(socketPath)) File.Delete(socketPath);
+    }
+
+    private static void ClearTimedStateFile()
+    {
+        try { File.Delete(TimedStatePath); } catch { }
     }
 
     private static void KillAll()
