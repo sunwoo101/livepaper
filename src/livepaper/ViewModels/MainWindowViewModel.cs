@@ -143,6 +143,13 @@ public partial class MainWindowViewModel : ViewModelBase
     public Func<Task<string?>>? OpenSaveDialog { get; set; }
     public Func<Task<string?>>? OpenLoadDialog { get; set; }
     public Func<Task<string?>>? PickFolderDialog { get; set; }
+    public Func<string, Task>? CopyToClipboard { get; set; }
+
+    [RelayCommand]
+    private async Task CopyText(string text)
+    {
+        if (CopyToClipboard != null) await CopyToClipboard(text);
+    }
 
     private readonly Models.AppSettings _settings;
     private CancellationTokenSource? _volumeSaveCts;

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -50,6 +51,7 @@ public partial class MainWindow : Window
             _boundVm.OpenSaveDialog = null;
             _boundVm.OpenLoadDialog = null;
             _boundVm.PickFolderDialog = null;
+            _boundVm.CopyToClipboard = null;
             _boundVm = null;
         }
         if (DataContext is MainWindowViewModel vm)
@@ -58,6 +60,12 @@ public partial class MainWindow : Window
             vm.OpenSaveDialog = OpenSaveDialogAsync;
             vm.OpenLoadDialog = OpenLoadDialogAsync;
             vm.PickFolderDialog = PickFolderDialogAsync;
+            vm.CopyToClipboard = async text =>
+            {
+                var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+                if (clipboard != null)
+                    await clipboard.SetValueAsync(DataFormat.Text, text);
+            };
             _boundVm = vm;
         }
     }
