@@ -18,7 +18,12 @@ public static class PlayerHelper
     private static int _timedIndex;
     private static string _timedOptions = "";
     private static bool _timedShuffle;
+    private static TimeSpan _timedInterval;
+    private static List<string>? _history;
+    private static int _historyIndex = -1;
     private static readonly object _lock = new();
+
+    public static bool IsPlaying => File.Exists(IpcSocket);
 
     private static string IpcSocket => Path.Combine(
         Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") ?? Path.GetTempPath(),
@@ -75,38 +80,60 @@ public static class PlayerHelper
             _timedIndex = 0;
             _timedOptions = mpvOptions;
             _timedShuffle = shuffle;
+            _history = [ordered[0]];
+            _historyIndex = 0;
             _current = Launch(mpvOptions, ordered[0]);
 
             if (ordered.Count > 1 && intervalSeconds > 0)
             {
-                var interval = TimeSpan.FromSeconds(intervalSeconds);
+                _timedInterval = TimeSpan.FromSeconds(intervalSeconds);
                 _playlistTimer = new Timer(_ =>
                 {
                     lock (_lock)
                     {
-                        var p = _timedPaths;
-                        if (p == null) return;
-                        var opts = _timedOptions;
-                        _timedIndex++;
-                        if (_timedIndex >= p.Count)
-                        {
-                            if (_timedShuffle)
-                            {
-                                var last = p[p.Count - 1];
-                                List<string> reshuffled;
-                                do { reshuffled = p.OrderBy(_ => Guid.NewGuid()).ToList(); }
-                                while (p.Count > 1 && reshuffled[0] == last);
-                                _timedPaths = p = reshuffled;
-                            }
-                            _timedIndex = 0;
-                        }
-                        KillCurrentProcess();
                         if (_timedPaths == null) return;
-                        _current = Launch(opts, p[_timedIndex]);
-                        _playlistTimer?.Change(interval, Timeout.InfiniteTimeSpan);
+                        var next = AdvanceToNext();
+                        if (next == null) return;
+                        KillCurrentProcess();
+                        _current = Launch(_timedOptions, next);
+                        _playlistTimer?.Change(_timedInterval, Timeout.InfiniteTimeSpan);
                     }
-                }, null, interval, Timeout.InfiniteTimeSpan);
+                }, null, _timedInterval, Timeout.InfiniteTimeSpan);
             }
+        }
+    }
+
+    public static void NextWallpaper()
+    {
+        lock (_lock)
+        {
+            if (_timedPaths == null)
+            {
+                SendCommand("playlist-next");
+                return;
+            }
+            var next = AdvanceToNext();
+            if (next == null) return;
+            KillCurrentProcess();
+            _current = Launch(_timedOptions, next);
+            _playlistTimer?.Change(_timedInterval, Timeout.InfiniteTimeSpan);
+        }
+    }
+
+    public static void PreviousWallpaper()
+    {
+        lock (_lock)
+        {
+            if (_timedPaths == null)
+            {
+                SendCommand("playlist-prev");
+                return;
+            }
+            if (_history == null || _historyIndex <= 0) return;
+            _historyIndex--;
+            KillCurrentProcess();
+            _current = Launch(_timedOptions, _history[_historyIndex]);
+            _playlistTimer?.Change(_timedInterval, Timeout.InfiniteTimeSpan);
         }
     }
 
@@ -172,6 +199,41 @@ public static class PlayerHelper
         }
     }
 
+    // Returns the next wallpaper path, extending history if needed.
+    private static string? AdvanceToNext()
+    {
+        if (_history != null && _historyIndex < _history.Count - 1)
+        {
+            _historyIndex++;
+            return _history[_historyIndex];
+        }
+
+        var p = _timedPaths;
+        if (p == null) return null;
+
+        _timedIndex++;
+        if (_timedIndex >= p.Count)
+        {
+            if (_timedShuffle)
+            {
+                var last = p[p.Count - 1];
+                List<string> reshuffled;
+                do { reshuffled = p.OrderBy(_ => Guid.NewGuid()).ToList(); }
+                while (p.Count > 1 && reshuffled[0] == last);
+                _timedPaths = p = reshuffled;
+            }
+            _timedIndex = 0;
+        }
+
+        var path = p[_timedIndex];
+        if (_history != null)
+        {
+            _history.Add(path);
+            _historyIndex = _history.Count - 1;
+        }
+        return path;
+    }
+
     private static Process? Launch(string mpvOptions, string file)
     {
         var socketPath = IpcSocket;
@@ -215,6 +277,8 @@ public static class PlayerHelper
         _playlistTimer?.Dispose();
         _playlistTimer = null;
         _timedPaths = null;
+        _history = null;
+        _historyIndex = -1;
         KillCurrentProcess();
     }
 }

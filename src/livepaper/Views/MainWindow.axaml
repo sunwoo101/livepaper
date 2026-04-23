@@ -661,7 +661,7 @@
                                     <TextBlock Text="Bind these commands in your compositor config:"
                                                Foreground="{StaticResource Subtext}"
                                                FontSize="12"/>
-                                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,8,Auto,8,Auto,8,Auto">
+                                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,8,Auto,8,Auto,8,Auto,8,Auto,8,Auto,8,Auto">
                                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Toggle mute"
                                                    Foreground="{StaticResource TextColor}" FontSize="12"
                                                    VerticalAlignment="Center" Margin="0,0,16,0"/>
@@ -691,6 +691,30 @@
                                                    VerticalAlignment="Center" Margin="0,0,16,0"/>
                                         <TextBlock Grid.Row="6" Grid.Column="1"
                                                    Text="livepaper --action=play"
+                                                   FontFamily="Monospace" FontSize="12"
+                                                   Foreground="{StaticResource Accent}"
+                                                   TextWrapping="Wrap"/>
+                                        <TextBlock Grid.Row="8" Grid.Column="0" Text="Toggle stop/play"
+                                                   Foreground="{StaticResource TextColor}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                        <TextBlock Grid.Row="8" Grid.Column="1"
+                                                   Text="livepaper --action=toggle-play"
+                                                   FontFamily="Monospace" FontSize="12"
+                                                   Foreground="{StaticResource Accent}"
+                                                   TextWrapping="Wrap"/>
+                                        <TextBlock Grid.Row="10" Grid.Column="0" Text="Next wallpaper"
+                                                   Foreground="{StaticResource TextColor}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                        <TextBlock Grid.Row="10" Grid.Column="1"
+                                                   Text="livepaper --action=next-wallpaper"
+                                                   FontFamily="Monospace" FontSize="12"
+                                                   Foreground="{StaticResource Accent}"
+                                                   TextWrapping="Wrap"/>
+                                        <TextBlock Grid.Row="12" Grid.Column="0" Text="Previous wallpaper"
+                                                   Foreground="{StaticResource TextColor}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                        <TextBlock Grid.Row="12" Grid.Column="1"
+                                                   Text="livepaper --action=previous-wallpaper"
                                                    FontFamily="Monospace" FontSize="12"
                                                    Foreground="{StaticResource Accent}"
                                                    TextWrapping="Wrap"/>

@@ -44,6 +44,32 @@ sealed class Program
                             PlayerHelper.Apply(session.Paths[0], s.BuildMpvOptions());
                     }
                     break;
+                case "toggle-play":
+                    if (PlayerHelper.IsPlaying)
+                    {
+                        PlayerHelper.Stop();
+                    }
+                    else
+                    {
+                        var ts = SettingsService.Load();
+                        var tsession = ts.LastSession;
+                        if (tsession != null)
+                        {
+                            if (tsession.IsTimedPlaylist && tsession.Paths.Count > 0)
+                                PlayerHelper.ApplyTimedPlaylist(tsession.Paths, ts.BuildMpvOptions(), tsession.Shuffle, tsession.TimedIntervalSeconds);
+                            else if (tsession.IsPlaylist && tsession.Paths.Count > 0)
+                                PlayerHelper.ApplyPlaylist(tsession.Paths, ts.BuildMpvPlaylistOptions(), tsession.Shuffle);
+                            else if (tsession.Paths.Count > 0)
+                                PlayerHelper.Apply(tsession.Paths[0], ts.BuildMpvOptions());
+                        }
+                    }
+                    break;
+                case "next-wallpaper":
+                    PlayerHelper.NextWallpaper();
+                    break;
+                case "previous-wallpaper":
+                    PlayerHelper.PreviousWallpaper();
+                    break;
             }
             return;
         }
