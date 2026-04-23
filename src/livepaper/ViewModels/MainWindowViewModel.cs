@@ -106,6 +106,7 @@ public partial class MainWindowViewModel : ViewModelBase
     // source settings
     [ObservableProperty] private string _wallpaperEnginePath = "";
     [ObservableProperty] private bool _weCopyFiles;
+    [ObservableProperty] private bool _resumeFromLast;
 
     // mpvpaper settings
     [ObservableProperty] private bool _loop;
@@ -181,6 +182,12 @@ public partial class MainWindowViewModel : ViewModelBase
         SettingsService.Save(_settings);
     }
 
+    partial void OnResumeFromLastChanged(bool value)
+    {
+        _settings.ResumeFromLast = value;
+        SettingsService.Save(_settings);
+    }
+
     [RelayCommand]
     private async Task PickWallpaperEngineFolderAsync()
     {
@@ -189,10 +196,17 @@ public partial class MainWindowViewModel : ViewModelBase
         if (path != null) WallpaperEnginePath = path;
     }
 
-    partial void OnPlaylistShuffleChanged(bool value) => SavePlaylistStateDebounced();
-    partial void OnIntervalHoursChanged(decimal value) => SavePlaylistStateDebounced();
-    partial void OnIntervalMinutesChanged(decimal value) => SavePlaylistStateDebounced();
-    partial void OnIntervalSecondsChanged(decimal value) => SavePlaylistStateDebounced();
+    partial void OnPlaylistShuffleChanged(bool value) { SavePlaylistStateDebounced(); ApplyTimedSettingsIfRunning(); }
+    partial void OnIntervalHoursChanged(decimal value) { SavePlaylistStateDebounced(); ApplyTimedSettingsIfRunning(); }
+    partial void OnIntervalMinutesChanged(decimal value) { SavePlaylistStateDebounced(); ApplyTimedSettingsIfRunning(); }
+    partial void OnIntervalSecondsChanged(decimal value) { SavePlaylistStateDebounced(); ApplyTimedSettingsIfRunning(); }
+
+    private void ApplyTimedSettingsIfRunning()
+    {
+        if (_settings.LastSession?.IsTimedPlaylist != true || !PlayerHelper.IsPlaying) return;
+        int secs = GetIntervalSeconds();
+        if (secs > 0) PlayerHelper.UpdateTimedSettings(PlaylistShuffle, secs);
+    }
 
     private int _lastSelectedIndex = -1;
     private int _lastBrowseSelectedIndex = -1;
@@ -235,6 +249,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _autoMuteThresholdDb = (decimal)_settings.AutoMuteThresholdDb;
         _wallpaperEnginePath = _settings.WallpaperEnginePath;
         _weCopyFiles = _settings.WeCopyFiles;
+        _resumeFromLast = _settings.ResumeFromLast;
         _mpvOptionsPreview = _settings.BuildMpvOptions();
         ((WallpaperEngineService)Sources.First(s => s is WallpaperEngineService)).WorkshopPath = _settings.WallpaperEnginePath;
 #pragma warning restore MVVMTK0034
@@ -250,11 +265,27 @@ public partial class MainWindowViewModel : ViewModelBase
 
         LoadLibrary();
         RestorePlaylistState();
+
+        var s = _settings.LastSession;
+        if (s != null && PlayerHelper.IsPlaying)
+        {
+            if (s.IsTimedPlaylist && PlaylistItems.Count > 0)
+            {
+                PlayerHelper.ResumeTimedTimer();
+                StatusMessage = $"Playing playlist ({PlaylistItems.Count} wallpapers, switching every {GetIntervalDisplay()})";
+            }
+            else if (s.IsPlaylist)
+                StatusMessage = $"Playing playlist ({s.Paths.Count} wallpapers)";
+        }
     }
 
     // Settings change handlers
     partial void OnLoopChanged(bool value) => SaveAndRebuild();
-    partial void OnNoAudioChanged(bool value) => SaveAndRebuild();
+    partial void OnNoAudioChanged(bool value)
+    {
+        SaveAndRebuild();
+        Task.Run(() => PlayerHelper.SetMute(value));
+    }
     partial void OnDisableCacheChanged(bool value) => SaveAndRebuild();
     partial void OnDemuxerMaxBytesChanged(int value) => SaveAndRebuild();
     partial void OnDemuxerMaxBackBytesChanged(int value) => SaveAndRebuild();

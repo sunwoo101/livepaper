@@ -21,6 +21,7 @@ public class AppSettings
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
         ".local/share/Steam/steamapps/workshop/content/431960");
     public bool WeCopyFiles { get; set; } = false;
+    public bool ResumeFromLast { get; set; } = true;
     public bool AutoMute { get; set; } = false;
     public int AutoMuteDelayMs { get; set; } = 200;
     public int AutoUnmuteDelayMs { get; set; } = 2000;

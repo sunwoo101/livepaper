@@ -98,7 +98,16 @@ sealed class Program
             if (session != null)
             {
                 if (session.IsTimedPlaylist && session.Paths.Count > 0)
-                    PlayerHelper.ApplyTimedPlaylist(ShuffleIfNeeded(session.Paths, session.Shuffle), settings.BuildMpvOptions(), session.Shuffle, session.TimedIntervalSeconds);
+                {
+                    bool started = PlayerHelper.IsPlaying && PlayerHelper.ResumeTimedTimer();
+                    if (!started)
+                    {
+                        if (settings.ResumeFromLast && PlayerHelper.RestoreTimedPlaylist()) { }
+                        else PlayerHelper.ApplyTimedPlaylist(ShuffleIfNeeded(session.Paths, session.Shuffle), settings.BuildMpvOptions(), session.Shuffle, session.TimedIntervalSeconds);
+                    }
+                    PlayerHelper.WriteTimerDaemonPid();
+                    Thread.Sleep(Timeout.Infinite);
+                }
                 else if (session.IsPlaylist && session.Paths.Count > 0)
                     PlayerHelper.ApplyPlaylist(session.Paths, settings.BuildMpvPlaylistOptions(), session.Shuffle);
                 else if (session.Paths.Count > 0)

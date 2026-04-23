@@ -36,6 +36,61 @@ public static class PlayerHelper
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
         ".config", "livepaper", "timed_state.json");
 
+    private static string TimerDaemonPidPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".config", "livepaper", "timer.pid");
+
+    public static void KillTimerDaemon()
+    {
+        try
+        {
+            if (!File.Exists(TimerDaemonPidPath)) return;
+            var pidText = File.ReadAllText(TimerDaemonPidPath).Trim();
+            if (int.TryParse(pidText, out int pid))
+            {
+                try { System.Diagnostics.Process.GetProcessById(pid).Kill(entireProcessTree: true); } catch { }
+            }
+            File.Delete(TimerDaemonPidPath);
+        }
+        catch { }
+    }
+
+    public static void SpawnTimerDaemon()
+    {
+        KillTimerDaemon();
+        try
+        {
+            var exe = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+            if (string.IsNullOrEmpty(exe)) return;
+            var psi = new System.Diagnostics.ProcessStartInfo("setsid")
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            psi.ArgumentList.Add(exe);
+            psi.ArgumentList.Add("--restore");
+            var proc = System.Diagnostics.Process.Start(psi);
+            if (proc != null)
+            {
+                proc.BeginOutputReadLine();
+                proc.BeginErrorReadLine();
+            }
+        }
+        catch { }
+    }
+
+    public static void WriteTimerDaemonPid()
+    {
+        try
+        {
+            var path = TimerDaemonPidPath;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, Environment.ProcessId.ToString());
+        }
+        catch { }
+    }
+
     private record TimedState(
         List<string> Paths, int Index,
         string Options, bool Shuffle, int IntervalSeconds,
@@ -141,49 +196,92 @@ public static class PlayerHelper
             SaveTimedState();
 
             if (ordered.Count > 1 && intervalSeconds > 0)
-            {
-                _playlistTimer = new Timer(_ =>
-                {
-                    lock (_lock)
-                    {
-                        // Sync with any external state changes (prev/next/pause/stop signals)
-                        LoadTimedState();
-                        if (_timedPaths == null) return;
-
-                        if (_timedTimerStopped)
-                        {
-                            _timedPaths = null;
-                            _history = null;
-                            _historyIndex = -1;
-                            _playlistTimer?.Dispose();
-                            _playlistTimer = null;
-                            return;
-                        }
-
-                        if (_timedTimerPaused)
-                        {
-                            _playlistTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
-                            return;
-                        }
-
-                        _timedRemainingMs -= 1000;
-                        if (_timedRemainingMs > 0)
-                        {
-                            _playlistTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
-                            return;
-                        }
-
-                        var next = AdvanceToNext();
-                        if (next == null) return;
-                        KillCurrentProcess();
-                        _current = Launch(_timedOptions, next);
-                        _timedRemainingMs = (long)_timedInterval.TotalMilliseconds;
-                        SaveTimedState();
-                        _playlistTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
-                    }
-                }, null, TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
-            }
+                StartTimedTimer();
         }
+    }
+
+    public static bool RestoreTimedPlaylist()
+    {
+        lock (_lock)
+        {
+            if (!LoadTimedState()) return false;
+            if (_timedPaths == null || _history == null || _timedPaths.Count == 0) return false;
+
+            _timedTimerStopped = false;
+            _timedTimerPaused = false;
+            _timedRemainingMs = (long)_timedInterval.TotalMilliseconds;
+
+            KillCurrentProcess();
+            _current = Launch(_timedOptions, _history[_historyIndex]);
+            SaveTimedState();
+
+            if (_timedPaths.Count > 1 && _timedInterval.TotalSeconds > 0)
+                StartTimedTimer();
+
+            return true;
+        }
+    }
+
+    public static bool ResumeTimedTimer()
+    {
+        lock (_lock)
+        {
+            if (!LoadTimedState()) return false;
+            if (_timedPaths == null || _history == null || _timedPaths.Count == 0) return false;
+
+            _timedTimerStopped = false;
+            _timedTimerPaused = false;
+            _timedRemainingMs = (long)_timedInterval.TotalMilliseconds;
+
+            if (_timedPaths.Count > 1 && _timedInterval.TotalSeconds > 0)
+                StartTimedTimer();
+
+            return true;
+        }
+    }
+
+    private static void StartTimedTimer()
+    {
+        _playlistTimer = new Timer(_ =>
+        {
+            lock (_lock)
+            {
+                // Sync with any external state changes (prev/next/pause/stop signals)
+                LoadTimedState();
+                if (_timedPaths == null) return;
+
+                if (_timedTimerStopped)
+                {
+                    _timedPaths = null;
+                    _history = null;
+                    _historyIndex = -1;
+                    _playlistTimer?.Dispose();
+                    _playlistTimer = null;
+                    return;
+                }
+
+                if (_timedTimerPaused)
+                {
+                    _playlistTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
+                    return;
+                }
+
+                _timedRemainingMs -= 1000;
+                if (_timedRemainingMs > 0)
+                {
+                    _playlistTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
+                    return;
+                }
+
+                var next = AdvanceToNext();
+                if (next == null) return;
+                KillCurrentProcess();
+                _current = Launch(_timedOptions, next);
+                _timedRemainingMs = (long)_timedInterval.TotalMilliseconds;
+                SaveTimedState();
+                _playlistTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
+            }
+        }, null, TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
     }
 
     public static void NextWallpaper()
@@ -217,6 +315,18 @@ public static class PlayerHelper
             _historyIndex--;
             KillCurrentProcess();
             _current = Launch(_timedOptions, _history[_historyIndex]);
+            _timedRemainingMs = (long)_timedInterval.TotalMilliseconds;
+            SaveTimedState();
+        }
+    }
+
+    public static void UpdateTimedSettings(bool shuffle, int intervalSeconds)
+    {
+        lock (_lock)
+        {
+            if (_timedPaths == null && !LoadTimedState()) return;
+            _timedShuffle = shuffle;
+            _timedInterval = TimeSpan.FromSeconds(intervalSeconds);
             _timedRemainingMs = (long)_timedInterval.TotalMilliseconds;
             SaveTimedState();
         }

@@ -18,8 +18,9 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            // Take over from any detached monitor process
+            // Take over from any detached daemons
             AudioMonitor.KillDetachedMonitor();
+            PlayerHelper.KillTimerDaemon();
 
             var window = new MainWindow
             {
@@ -32,6 +33,8 @@ public partial class App : Application
                 if (settings.AutoMute)
                     AudioMonitor.SpawnDetachedMonitor();
                 AudioMonitor.Stop();
+                if (settings.LastSession?.IsTimedPlaylist == true && PlayerHelper.IsPlaying)
+                    PlayerHelper.SpawnTimerDaemon();
             };
 
             desktop.MainWindow = window;
