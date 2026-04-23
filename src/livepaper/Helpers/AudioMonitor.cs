@@ -171,10 +171,16 @@ public static class AudioMonitor
         int unmuteTicksNeeded = Math.Max(1, unmuteDelayMs / MsPerTick);
         int aboveCount = 0;
         int belowCount = 0;
+        bool wasPlaying = PlayerHelper.IsPlaying;
 
         while (!ct.IsCancellationRequested)
         {
             await Task.Delay(MsPerTick, ct);
+
+            bool isPlaying = PlayerHelper.IsPlaying;
+            if (isPlaying && !wasPlaying && _isMuted)
+                PlayerHelper.SetMute(true);
+            wasPlaying = isPlaying;
 
             bool hasAudio = Volatile.Read(ref _aboveThresholdCount) > 0;
 
