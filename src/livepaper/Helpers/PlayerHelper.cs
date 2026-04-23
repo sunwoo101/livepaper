@@ -138,6 +138,8 @@ public static class PlayerHelper
                 {
                     lock (_lock)
                     {
+                        // Sync with any external state changes (e.g. --action=previous-wallpaper)
+                        LoadTimedState();
                         if (_timedPaths == null) return;
                         var next = AdvanceToNext();
                         if (next == null) return;
