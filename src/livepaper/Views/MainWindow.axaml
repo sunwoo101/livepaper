@@ -637,6 +637,9 @@
                                                 Classes="ghost"
                                                 Command="{Binding PickWallpaperEngineFolderCommand}"/>
                                     </Grid>
+                                    <CheckBox Content="Copy files instead of symlinking"
+                                              IsChecked="{Binding WeCopyFiles}"
+                                              Foreground="{StaticResource TextColor}"/>
                                 </StackPanel>
                             </Border>
 
@@ -735,9 +738,14 @@
                                 </StackPanel>
                             </Border>
 
-                            <Button Content="Reset to Defaults"
-                                    Classes="ghost"
-                                    Command="{Binding ResetMpvOptionsCommand}"/>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Reset to Defaults"
+                                        Classes="ghost"
+                                        Command="{Binding ResetMpvOptionsCommand}"/>
+                                <Button Content="Clear Library"
+                                        Classes="danger"
+                                        Command="{Binding OpenClearLibraryCommand}"/>
+                            </StackPanel>
 
                         </StackPanel>
                     </ScrollViewer>
@@ -839,6 +847,34 @@
                                TextWrapping="Wrap"/>
                     <Button Content="OK" Classes="ghost" HorizontalAlignment="Right"
                             Command="{Binding DismissErrorCommand}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Clear library confirmation modal -->
+        <Grid Grid.RowSpan="2" IsVisible="{Binding IsClearLibraryOpen}" Background="#B2000000">
+            <Border Background="{StaticResource BgBase}" CornerRadius="12" Padding="28"
+                    Width="380" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel Spacing="14">
+                    <TextBlock Text="Clear Library" FontSize="15" FontWeight="SemiBold"
+                               Foreground="{StaticResource Danger}"/>
+                    <TextBlock Text="This will permanently delete all downloaded wallpapers from disk. This cannot be undone."
+                               FontSize="12" Foreground="{StaticResource TextColor}" TextWrapping="Wrap"/>
+                    <TextBlock FontSize="12" Foreground="{StaticResource Muted}"
+                               IsVisible="{Binding !ClearLibraryReady}">
+                        <TextBlock.Text>
+                            <MultiBinding StringFormat="You can confirm in {0}s…">
+                                <Binding Path="ClearLibraryCountdown"/>
+                            </MultiBinding>
+                        </TextBlock.Text>
+                    </TextBlock>
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                        <Button Content="Cancel" Classes="ghost"
+                                Command="{Binding CancelClearLibraryCommand}"/>
+                        <Button Content="Delete All" Classes="danger"
+                                IsEnabled="{Binding ClearLibraryReady}"
+                                Command="{Binding ConfirmClearLibraryCommand}"/>
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </Grid>

@@ -12,7 +12,7 @@ public static class DownloadHelper
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "livepaper", "library");
 
-    public static async Task<LibraryItem> DownloadAsync(WallpaperDetail detail, string? thumbnailUrl, string? sourceId = null, IProgress<double>? progress = null)
+    public static async Task<LibraryItem> DownloadAsync(WallpaperDetail detail, string? thumbnailUrl, string? sourceId = null, IProgress<double>? progress = null, bool copyLocalFiles = false)
     {
         Directory.CreateDirectory(LibraryPath);
 
@@ -23,7 +23,10 @@ public static class DownloadHelper
         if (File.Exists(detail.DownloadUrl))
         {
             if (File.Exists(videoPath)) File.Delete(videoPath);
-            File.CreateSymbolicLink(videoPath, detail.DownloadUrl);
+            if (copyLocalFiles)
+                await Task.Run(() => File.Copy(detail.DownloadUrl, videoPath));
+            else
+                File.CreateSymbolicLink(videoPath, detail.DownloadUrl);
             progress?.Report(1.0);
         }
         else
@@ -39,7 +42,10 @@ public static class DownloadHelper
                 if (File.Exists(thumbnailUrl))
                 {
                     if (File.Exists(thumbPath)) File.Delete(thumbPath);
-                    File.CreateSymbolicLink(thumbPath, thumbnailUrl);
+                    if (copyLocalFiles)
+                        await Task.Run(() => File.Copy(thumbnailUrl, thumbPath));
+                    else
+                        File.CreateSymbolicLink(thumbPath, thumbnailUrl);
                 }
                 else
                     await DownloadFileAsync(thumbnailUrl, thumbPath, null);

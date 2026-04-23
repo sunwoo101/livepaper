@@ -1,5 +1,6 @@
 using Avalonia;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using livepaper.Helpers;
@@ -47,7 +48,7 @@ sealed class Program
                     if (session != null)
                     {
                         if (session.IsTimedPlaylist && session.Paths.Count > 0)
-                            PlayerHelper.ApplyTimedPlaylist(session.Paths, s.BuildMpvOptions(), session.Shuffle, session.TimedIntervalSeconds);
+                            PlayerHelper.ApplyTimedPlaylist(ShuffleIfNeeded(session.Paths, session.Shuffle), s.BuildMpvOptions(), session.Shuffle, session.TimedIntervalSeconds);
                         else if (session.IsPlaylist && session.Paths.Count > 0)
                             PlayerHelper.ApplyPlaylist(session.Paths, s.BuildMpvPlaylistOptions(), session.Shuffle);
                         else if (session.Paths.Count > 0)
@@ -66,7 +67,7 @@ sealed class Program
                         if (tsession != null)
                         {
                             if (tsession.IsTimedPlaylist && tsession.Paths.Count > 0)
-                                PlayerHelper.ApplyTimedPlaylist(tsession.Paths, ts.BuildMpvOptions(), tsession.Shuffle, tsession.TimedIntervalSeconds);
+                                PlayerHelper.ApplyTimedPlaylist(ShuffleIfNeeded(tsession.Paths, tsession.Shuffle), ts.BuildMpvOptions(), tsession.Shuffle, tsession.TimedIntervalSeconds);
                             else if (tsession.IsPlaylist && tsession.Paths.Count > 0)
                                 PlayerHelper.ApplyPlaylist(tsession.Paths, ts.BuildMpvPlaylistOptions(), tsession.Shuffle);
                             else if (tsession.Paths.Count > 0)
@@ -97,7 +98,7 @@ sealed class Program
             if (session != null)
             {
                 if (session.IsTimedPlaylist && session.Paths.Count > 0)
-                    PlayerHelper.ApplyTimedPlaylist(session.Paths, settings.BuildMpvOptions(), session.Shuffle, session.TimedIntervalSeconds);
+                    PlayerHelper.ApplyTimedPlaylist(ShuffleIfNeeded(session.Paths, session.Shuffle), settings.BuildMpvOptions(), session.Shuffle, session.TimedIntervalSeconds);
                 else if (session.IsPlaylist && session.Paths.Count > 0)
                     PlayerHelper.ApplyPlaylist(session.Paths, settings.BuildMpvPlaylistOptions(), session.Shuffle);
                 else if (session.Paths.Count > 0)
@@ -108,6 +109,9 @@ sealed class Program
 
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
+
+    private static List<string> ShuffleIfNeeded(List<string> paths, bool shuffle) =>
+        shuffle ? paths.OrderBy(_ => Guid.NewGuid()).ToList() : paths;
 
     private static void ApplyRandom()
     {

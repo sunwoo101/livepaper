@@ -42,11 +42,61 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private string? _errorMessage;
     [ObservableProperty] private string _errorTitle = "Download Failed";
 
+    [ObservableProperty] private bool _isClearLibraryOpen;
+    [ObservableProperty] private int _clearLibraryCountdown;
+    [ObservableProperty] private bool _clearLibraryReady;
+
+    private CancellationTokenSource? _clearLibraryCts;
+
     partial void OnDownloadProgressChanged(double value) =>
         DownloadIndeterminate = value < 0.01;
 
     [RelayCommand]
     private void DismissError() => ErrorMessage = null;
+
+    [RelayCommand]
+    private void OpenClearLibrary()
+    {
+        _clearLibraryCts?.Cancel();
+        _clearLibraryCts?.Dispose();
+        _clearLibraryCts = new CancellationTokenSource();
+        ClearLibraryCountdown = 5;
+        ClearLibraryReady = false;
+        IsClearLibraryOpen = true;
+        var ct = _clearLibraryCts.Token;
+        Task.Run(async () =>
+        {
+            for (int i = 4; i >= 0; i--)
+            {
+                try { await Task.Delay(1000, ct); }
+                catch (OperationCanceledException) { return; }
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    ClearLibraryCountdown = i;
+                    if (i == 0) ClearLibraryReady = true;
+                });
+            }
+        });
+    }
+
+    [RelayCommand]
+    private void CancelClearLibrary()
+    {
+        _clearLibraryCts?.Cancel();
+        IsClearLibraryOpen = false;
+    }
+
+    [RelayCommand]
+    private void ConfirmClearLibrary()
+    {
+        if (!ClearLibraryReady) return;
+        LibraryService.DeleteAll();
+        LibraryWallpapers.Clear();
+        PlaylistItems.Clear();
+        IsPlaylistEmpty = true;
+        IsClearLibraryOpen = false;
+        StatusMessage = "Library cleared";
+    }
 
     private bool _isSearchMode;
     private string _currentQuery = "";
@@ -55,6 +105,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     // source settings
     [ObservableProperty] private string _wallpaperEnginePath = "";
+    [ObservableProperty] private bool _weCopyFiles;
 
     // mpvpaper settings
     [ObservableProperty] private bool _loop;
@@ -124,6 +175,12 @@ public partial class MainWindowViewModel : ViewModelBase
         SettingsService.Save(_settings);
     }
 
+    partial void OnWeCopyFilesChanged(bool value)
+    {
+        _settings.WeCopyFiles = value;
+        SettingsService.Save(_settings);
+    }
+
     [RelayCommand]
     private async Task PickWallpaperEngineFolderAsync()
     {
@@ -177,6 +234,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _autoUnmuteDelayMs = _settings.AutoUnmuteDelayMs;
         _autoMuteThresholdDb = (decimal)_settings.AutoMuteThresholdDb;
         _wallpaperEnginePath = _settings.WallpaperEnginePath;
+        _weCopyFiles = _settings.WeCopyFiles;
         _mpvOptionsPreview = _settings.BuildMpvOptions();
         ((WallpaperEngineService)Sources.First(s => s is WallpaperEngineService)).WorkshopPath = _settings.WallpaperEnginePath;
 #pragma warning restore MVVMTK0034
@@ -328,7 +386,8 @@ public partial class MainWindowViewModel : ViewModelBase
             StatusMessage = "Set an interval greater than 0 to use timed playlists";
             return;
         }
-        PlayerHelper.ApplyTimedPlaylist(paths, _settings.BuildMpvOptions(), PlaylistShuffle, intervalSecs);
+        var playPaths = PlaylistShuffle ? paths.OrderBy(_ => Guid.NewGuid()).ToList() : paths;
+        PlayerHelper.ApplyTimedPlaylist(playPaths, _settings.BuildMpvOptions(), PlaylistShuffle, intervalSecs);
         _settings.LastSession = new LastSession
         {
             IsTimedPlaylist = true,
@@ -338,6 +397,40 @@ public partial class MainWindowViewModel : ViewModelBase
         };
         SettingsService.Save(_settings);
         StatusMessage = $"Playing playlist ({paths.Count} wallpapers, switching every {GetIntervalDisplay()})";
+    }
+
+    [RelayCommand]
+    private void PlayFromCard(WallpaperCardViewModel card)
+    {
+        var allPaths = PlaylistItems
+            .Where(c => c.LibraryItem != null)
+            .Select(c => c.LibraryItem!.VideoPath)
+            .ToList();
+        if (allPaths.Count == 0) return;
+
+        int intervalSecs = GetIntervalSeconds();
+        if (intervalSecs == 0 && allPaths.Count > 1)
+        {
+            StatusMessage = "Set an interval greater than 0 to use timed playlists";
+            return;
+        }
+
+        // Clicked card always goes first; rest is shuffled or in playlist order
+        int startIdx = PlaylistItems.IndexOf(card);
+        var rest = allPaths.Where((_, i) => i != startIdx).ToList();
+        if (PlaylistShuffle) rest = rest.OrderBy(_ => Guid.NewGuid()).ToList();
+        var paths = new List<string> { allPaths[startIdx] }.Concat(rest).ToList();
+
+        PlayerHelper.ApplyTimedPlaylist(paths, _settings.BuildMpvOptions(), PlaylistShuffle, intervalSecs);
+        _settings.LastSession = new LastSession
+        {
+            IsTimedPlaylist = true,
+            Paths = allPaths,
+            Shuffle = PlaylistShuffle,
+            TimedIntervalSeconds = intervalSecs
+        };
+        SettingsService.Save(_settings);
+        StatusMessage = $"Playing from: {card.Title}";
     }
 
     public void MovePlaylistItem(int from, int insertionIndex)
@@ -690,7 +783,7 @@ public partial class MainWindowViewModel : ViewModelBase
         PreviewCard = null;
 
         var selected = BrowseWallpapers.Where(c => c.IsSelected).ToList();
-        var toDownload = selected.Count > 1 ? selected : [card];
+        var toDownload = selected.Count > 1 && selected.Contains(card) ? selected : [card];
 
         IsDownloading = true;
         DownloadProgress = 0;
@@ -724,7 +817,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     PageUrl = target.PageUrl
                 });
                 var progressReporter = new Progress<double>(p => DownloadProgress = p);
-                var item = await DownloadHelper.DownloadAsync(detail, target.ThumbnailSource, target.PageUrl, progressReporter);
+                var item = await DownloadHelper.DownloadAsync(detail, target.ThumbnailSource, target.PageUrl, progressReporter, WeCopyFiles);
                 var libCard = MakeLibraryCard(item);
                 LibraryWallpapers.Add(libCard);
 

@@ -125,9 +125,7 @@ public static class PlayerHelper
             KillAll();
             if (paths.Count == 0) return;
 
-            var ordered = shuffle
-                ? paths.OrderBy(_ => Guid.NewGuid()).ToList()
-                : new List<string>(paths);
+            var ordered = new List<string>(paths); // caller is responsible for initial order; shuffle flag only controls cycle-end reshuffle
 
             _timedPaths = ordered;
             _timedIndex = 0;

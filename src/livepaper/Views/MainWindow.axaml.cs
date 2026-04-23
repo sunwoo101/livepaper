@@ -38,6 +38,7 @@ public partial class MainWindow : Window
         this.AddHandler(PointerPressedEvent, OnPointerPressed, RoutingStrategies.Bubble, handledEventsToo: true);
         this.AddHandler(PointerMovedEvent, OnPointerMoved, RoutingStrategies.Bubble, handledEventsToo: true);
         this.AddHandler(PointerReleasedEvent, OnPointerReleased, RoutingStrategies.Bubble, handledEventsToo: true);
+        this.AddHandler(PointerCaptureLostEvent, OnPointerCaptureLost, RoutingStrategies.Bubble, handledEventsToo: true);
     }
 
     private MainWindowViewModel? Vm => DataContext as MainWindowViewModel;
@@ -186,6 +187,14 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        DragPreviewCanvas.IsVisible = false;
+        PlaylistDropIndicator.IsVisible = false;
+        _dragCard = null;
+        _isDragging = false;
+    }
+
     private void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (_dragCard == null) return;
@@ -202,6 +211,10 @@ public partial class MainWindow : Window
                 if (fromIdx >= 0)
                     Vm.MovePlaylistItem(fromIdx, insertIdx);
             }
+        }
+        else if (Vm != null)
+        {
+            Vm.PlayFromCardCommand.Execute(_dragCard);
         }
 
         DragPreviewCanvas.IsVisible = false;

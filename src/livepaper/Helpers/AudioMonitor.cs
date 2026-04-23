@@ -22,7 +22,7 @@ public static class AudioMonitor
             var pidText = File.ReadAllText(MonitorPidPath).Trim();
             if (int.TryParse(pidText, out int pid))
             {
-                try { Process.GetProcessById(pid).Kill(); } catch { }
+                try { Process.GetProcessById(pid).Kill(entireProcessTree: true); } catch { }
             }
             File.Delete(MonitorPidPath);
         }
@@ -156,7 +156,7 @@ public static class AudioMonitor
                 if (line == null) break;
                 if (!line.Contains("sink-input")) continue;
 
-                if (line.Contains("'new'") && TryParseStreamId(line, out uint newId))
+                if ((line.Contains("'new'") || line.Contains("'change'")) && TryParseStreamId(line, out uint newId))
                     StartMonitor(newId);
                 else if (line.Contains("'remove'") && TryParseStreamId(line, out uint removeId))
                     StopMonitor(removeId);
@@ -313,7 +313,6 @@ public static class AudioMonitor
         var blocks = output.Split("Sink Input #", StringSplitOptions.RemoveEmptyEntries);
         foreach (var block in blocks)
         {
-            if (block.Contains("\n\tCorked: yes")) continue;
             if (block.Contains("application.process.binary = \"mpv\"")) continue;
             if (block.Contains("application.name = \"mpv\"")) continue;
             var firstLine = block.Split('\n')[0].Trim();
