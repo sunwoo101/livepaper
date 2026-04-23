@@ -245,7 +245,7 @@ public static class PlayerHelper
         if (_history != null)
         {
             _history.Add(path);
-            if (_history.Count > 500) _history.RemoveAt(0);
+            if (_history.Count > 100) _history.RemoveAt(0);
             _historyIndex = _history.Count - 1;
         }
         return path;
