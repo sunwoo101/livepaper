@@ -47,8 +47,21 @@ public static class ImportService
         bool samePath = Path.GetFullPath(sourcePath) == Path.GetFullPath(videoPath);
         if (!samePath)
         {
-            if (File.Exists(videoPath)) File.Delete(videoPath);
-            await Task.Run(() => File.Copy(sourcePath, videoPath));
+            // Copy to a sibling .tmp first, then atomically rename. If the
+            // copy fails partway (source disappears, disk full, etc.) the
+            // existing library entry is left intact instead of being deleted
+            // and replaced with nothing.
+            var tmpPath = videoPath + ".tmp";
+            try
+            {
+                await Task.Run(() => File.Copy(sourcePath, tmpPath, overwrite: true));
+                File.Move(tmpPath, videoPath, overwrite: true);
+            }
+            catch
+            {
+                try { File.Delete(tmpPath); } catch { }
+                throw;
+            }
         }
 
         // Best-effort thumbnail; absence is non-fatal.
