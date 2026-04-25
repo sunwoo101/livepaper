@@ -67,6 +67,15 @@ public static class AudioMonitor
     private static volatile bool _isMuted;
     private static int _aboveThresholdCount;
 
+    // Entry point for the detached `livepaper --monitor` daemon process.
+    public static void RunDaemon()
+    {
+        var settings = SettingsService.Load();
+        if (settings.AutoMute)
+            Start(settings.AutoMuteDelayMs, settings.AutoUnmuteDelayMs, settings.AutoMuteThresholdDb);
+        Thread.Sleep(Timeout.Infinite);
+    }
+
     public static void Start(int muteDelayMs, int unmuteDelayMs, double thresholdDb)
     {
         Stop();
