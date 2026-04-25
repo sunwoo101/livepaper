@@ -37,7 +37,14 @@ public static class PlaylistService
     {
         string path = Path.Combine(PlaylistsPath, Sanitize(name) + ".json");
         if (!File.Exists(path)) return null;
-        return JsonSerializer.Deserialize<CustomPlaylist>(File.ReadAllText(path));
+        try
+        {
+            return JsonSerializer.Deserialize<CustomPlaylist>(File.ReadAllText(path));
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public static string Sanitize(string name)

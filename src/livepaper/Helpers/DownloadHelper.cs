@@ -22,11 +22,17 @@ public static class DownloadHelper
 
         if (File.Exists(detail.DownloadUrl))
         {
-            if (File.Exists(videoPath)) File.Delete(videoPath);
-            if (copyLocalFiles)
-                await Task.Run(() => File.Copy(detail.DownloadUrl, videoPath));
-            else
-                File.CreateSymbolicLink(videoPath, detail.DownloadUrl);
+            // Guard: don't delete the source if it resolves to the same path
+            // as our destination (would cause data loss + dangling symlink).
+            bool samePath = Path.GetFullPath(detail.DownloadUrl) == Path.GetFullPath(videoPath);
+            if (!samePath && File.Exists(videoPath)) File.Delete(videoPath);
+            if (!samePath)
+            {
+                if (copyLocalFiles)
+                    await Task.Run(() => File.Copy(detail.DownloadUrl, videoPath));
+                else
+                    File.CreateSymbolicLink(videoPath, detail.DownloadUrl);
+            }
             progress?.Report(1.0);
         }
         else
@@ -41,11 +47,15 @@ public static class DownloadHelper
             {
                 if (File.Exists(thumbnailUrl))
                 {
-                    if (File.Exists(thumbPath)) File.Delete(thumbPath);
-                    if (copyLocalFiles)
-                        await Task.Run(() => File.Copy(thumbnailUrl, thumbPath));
-                    else
-                        File.CreateSymbolicLink(thumbPath, thumbnailUrl);
+                    bool sameThumb = Path.GetFullPath(thumbnailUrl) == Path.GetFullPath(thumbPath);
+                    if (!sameThumb && File.Exists(thumbPath)) File.Delete(thumbPath);
+                    if (!sameThumb)
+                    {
+                        if (copyLocalFiles)
+                            await Task.Run(() => File.Copy(thumbnailUrl, thumbPath));
+                        else
+                            File.CreateSymbolicLink(thumbPath, thumbnailUrl);
+                    }
                 }
                 else
                     await DownloadFileAsync(thumbnailUrl, thumbPath, null);

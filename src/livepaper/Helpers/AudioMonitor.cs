@@ -49,9 +49,9 @@ public static class AudioMonitor
             {
                 proc.BeginOutputReadLine();
                 proc.BeginErrorReadLine();
-                var path = MonitorPidPath;
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                File.WriteAllText(path, proc.Id.ToString());
+                // Daemon writes its own PID from RunDaemon — proc.Id here is
+                // the setsid wrapper, which may exec or fork depending on
+                // whether livepaper is a process group leader.
             }
         }
         catch { }
@@ -70,10 +70,22 @@ public static class AudioMonitor
     // Entry point for the detached `livepaper --monitor` daemon process.
     public static void RunDaemon()
     {
+        WriteMonitorPid();
         var settings = SettingsService.Load();
         if (settings.AutoMute)
             Start(settings.AutoMuteDelayMs, settings.AutoUnmuteDelayMs, settings.AutoMuteThresholdDb);
         Thread.Sleep(Timeout.Infinite);
+    }
+
+    private static void WriteMonitorPid()
+    {
+        try
+        {
+            var path = MonitorPidPath;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, Environment.ProcessId.ToString());
+        }
+        catch { }
     }
 
     public static void Start(int muteDelayMs, int unmuteDelayMs, double thresholdDb)

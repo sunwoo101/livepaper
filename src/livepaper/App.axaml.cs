@@ -36,7 +36,11 @@ public partial class App : Application
                 AudioMonitor.Stop();
                 // Must clear before SpawnTimerDaemon so the GUI-alive guard passes.
                 PlayerHelper.ClearGuiTimerPid();
-                if (settings.LastSession?.IsTimedPlaylist == true && PlayerHelper.IsPlaying)
+                // IsTimedPlaylistActive (state-file based) survives the brief
+                // kill→launch gap where IsPlaying flickers false, and correctly
+                // stays false after Stop so we don't auto-restart a session
+                // the user explicitly stopped.
+                if (settings.LastSession?.IsTimedPlaylist == true && PlayerHelper.IsTimedPlaylistActive())
                     PlayerHelper.SpawnTimerDaemon();
             };
 
