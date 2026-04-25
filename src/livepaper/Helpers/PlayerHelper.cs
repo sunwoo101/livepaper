@@ -256,9 +256,9 @@ public static class PlayerHelper
     {
         lock (_lock)
         {
-            KillAll();
+            TeardownTimer();
             ClearTimedStateFile();
-            _current = Launch(mpvOptions, videoPath);
+            SwitchToFile(videoPath, mpvOptions);
         }
     }
 
@@ -294,8 +294,8 @@ public static class PlayerHelper
     {
         lock (_lock)
         {
-            KillAll();
-            if (paths.Count == 0) return;
+            TeardownTimer();
+            if (paths.Count == 0) { KillCurrentProcess(); return; }
 
             var ordered = new List<string>(paths); // caller is responsible for initial order; shuffle flag only controls cycle-end reshuffle
 
@@ -309,7 +309,7 @@ public static class PlayerHelper
             _timedRemainingMs = (long)_timedInterval.TotalMilliseconds;
             _history = [ordered[0]];
             _historyIndex = 0;
-            _current = Launch(mpvOptions, ordered[0]);
+            SwitchToFile(ordered[0], mpvOptions);
             SaveTimedState();
 
             if (ordered.Count > 1 && intervalSeconds > 0)
@@ -328,8 +328,7 @@ public static class PlayerHelper
             _timedTimerPaused = false;
             _timedRemainingMs = (long)_timedInterval.TotalMilliseconds;
 
-            KillCurrentProcess();
-            _current = Launch(_timedOptions, _history[_historyIndex]);
+            SwitchToFile(_history[_historyIndex], _timedOptions);
             SaveTimedState();
 
             if (_timedPaths.Count > 1 && _timedInterval.TotalSeconds > 0)
@@ -418,10 +417,63 @@ public static class PlayerHelper
 
     private static void LaunchAndReset(string path)
     {
-        KillCurrentProcess();
-        _current = Launch(_timedOptions, path);
+        SwitchToFile(path, _timedOptions);
         _timedRemainingMs = (long)_timedInterval.TotalMilliseconds;
         SaveTimedState();
+    }
+
+    // Switch mpv to a single video. If mpvpaper is alive we replace the file
+    // in place over IPC (no kill→launch flicker, decoder context preserved).
+    // Otherwise we cold-start with the given mpv options. Persistent mpv
+    // properties (loop-file, loop-playlist) are explicitly set so the
+    // session behaves as a single looping file regardless of what mpv was
+    // doing previously (e.g., transitioning from Play All).
+    private static void SwitchToFile(string path, string mpvOptions)
+    {
+        if (IsPlaying && TryIpcSwitchToFile(path, mpvOptions))
+        {
+            // _current still references the existing process; nothing to update.
+        }
+        else
+        {
+            KillCurrentProcess();
+            _current = Launch(mpvOptions, path);
+        }
+    }
+
+    private static bool TryIpcSwitchToFile(string path, string mpvOptions)
+    {
+        // Mirror the launch-time `loop` option as a runtime property so the
+        // user's Loop preference still applies when we IPC-switch instead of
+        // cold-starting. Other launch-only options (hwdec, cache, demuxer)
+        // can't be toggled mid-session and only take effect on next cold start.
+        bool loopFile = mpvOptions.Split(' ', StringSplitOptions.RemoveEmptyEntries).Contains("loop");
+        return TrySendCommand("set", "loop-file", loopFile ? "inf" : "no")
+            && TrySendCommand("set", "loop-playlist", "no")
+            && TrySendCommand("playlist-clear")
+            && TrySendCommand("loadfile", path, "replace");
+    }
+
+    // Bool-returning variant of SendCommand for callers that need to know
+    // whether the IPC succeeded so they can fall back to a fresh launch.
+    private static bool TrySendCommand(params object[] args)
+    {
+        var socketPath = IpcSocket;
+        if (!File.Exists(socketPath)) return false;
+        try
+        {
+            using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            socket.SendTimeout = 500;
+            socket.ReceiveTimeout = 500;
+            socket.Connect(new UnixDomainSocketEndPoint(socketPath));
+            var cmd = JsonSerializer.Serialize(new { command = args });
+            socket.Send(Encoding.UTF8.GetBytes(cmd + "\n"));
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static void AdvanceAndLaunch()
@@ -484,7 +536,9 @@ public static class PlayerHelper
             WritePendingAction("next");
             return;
         }
-        // Single video / mpv-native playlist mode — let mpv handle it.
+        // Single-wallpaper sessions (single, random) — step the library.
+        // mpv-native playlist mode falls through to playlist-next.
+        if (TryStepLibrary(forward: true)) return;
         SendCommand("playlist-next");
     }
 
@@ -495,7 +549,40 @@ public static class PlayerHelper
             WritePendingAction("prev");
             return;
         }
+        if (TryStepLibrary(forward: false)) return;
         SendCommand("playlist-prev");
+    }
+
+    // For single-wallpaper sessions (no playlist context), `next`/`prev`
+    // steps through the library alphabetically. Wraps at the ends. Returns
+    // false for mpv-native playlist sessions so the caller can fall through
+    // to mpv's own `playlist-next`/`playlist-prev`.
+    private static bool TryStepLibrary(bool forward)
+    {
+        var settings = SettingsService.Load();
+        var session = settings.LastSession;
+        if (session == null) return false;
+        if (session.IsTimedPlaylist || session.IsPlaylist) return false;
+        if (session.Paths.Count == 0) return false;
+
+        // Use LoadAll's native order so stepping mirrors the UI grid order
+        // exactly (whatever filesystem order GUI displays).
+        var library = LibraryService.LoadAll();
+        if (library.Count == 0) return false;
+
+        var current = session.Paths[0];
+        int currentIdx = library.FindIndex(i => i.VideoPath == current);
+        int newIdx = currentIdx < 0
+            ? 0
+            : forward
+                ? (currentIdx + 1) % library.Count
+                : (currentIdx - 1 + library.Count) % library.Count;
+
+        var pickPath = library[newIdx].VideoPath;
+        Apply(pickPath, settings.BuildMpvOptions());
+        settings.LastSession = new LastSession { Paths = [pickPath] };
+        SettingsService.Save(settings);
+        return true;
     }
 
     public static void UpdateTimedSettings(bool shuffle, int intervalSeconds)
@@ -626,6 +713,19 @@ public static class PlayerHelper
     public static void SetVolume(int volume) =>
         SendCommand("set_property", "volume", (double)volume);
 
+    // Adjust volume by `delta` (clamped 0-100). Updates the persisted setting
+    // so subsequent launches and the GUI slider reflect the change, and also
+    // pushes to the running mpv via IPC for an immediate effect.
+    public static void AdjustVolume(int delta)
+    {
+        var settings = SettingsService.Load();
+        int newVolume = Math.Clamp(settings.Volume + delta, 0, 100);
+        if (newVolume == settings.Volume) return;
+        settings.Volume = newVolume;
+        SettingsService.Save(settings);
+        SetVolume(newVolume);
+    }
+
     // Returns the next wallpaper path, extending history if needed.
     private static string? AdvanceToNext()
     {
@@ -718,7 +818,10 @@ public static class PlayerHelper
         catch { }
     }
 
-    private static void KillAll()
+    // State-only teardown (timer state, history, pending action). Does NOT
+    // touch mpvpaper — callers that want to start a new session can
+    // IPC-switch the existing mpvpaper instead of killing it.
+    private static void TeardownTimer()
     {
         _playlistTimer?.Dispose();
         _playlistTimer = null;
@@ -729,6 +832,11 @@ public static class PlayerHelper
         _timedTimerStopped = false;
         _timedRemainingMs = 0;
         ConsumePendingAction();
+    }
+
+    private static void KillAll()
+    {
+        TeardownTimer();
         KillCurrentProcess();
     }
 }

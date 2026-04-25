@@ -31,7 +31,14 @@ public static class LibraryService
 
         foreach (var mp4 in Directory.GetFiles(DownloadHelper.LibraryPath, "*.mp4"))
         {
-            if (!File.Exists(mp4)) continue; // skip broken symlinks
+            // Dangling symlink (target was deleted, e.g., WE wallpaper
+            // uninstalled from Steam). Sweep it and its sibling .jpg/.id.
+            if (!File.Exists(mp4))
+            {
+                if (IsSymlink(mp4)) CleanOrphan(mp4);
+                continue;
+            }
+
             string title = Path.GetFileNameWithoutExtension(mp4);
             string jpg = Path.ChangeExtension(mp4, ".jpg");
 
@@ -47,5 +54,18 @@ public static class LibraryService
             });
         }
         return items;
+    }
+
+    private static bool IsSymlink(string path)
+    {
+        try { return new FileInfo(path).LinkTarget != null; }
+        catch { return false; }
+    }
+
+    private static void CleanOrphan(string mp4Path)
+    {
+        try { File.Delete(mp4Path); } catch { }
+        try { File.Delete(Path.ChangeExtension(mp4Path, ".jpg")); } catch { }
+        try { File.Delete(Path.ChangeExtension(mp4Path, ".id")); } catch { }
     }
 }
