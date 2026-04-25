@@ -430,7 +430,7 @@ public static class PlayerHelper
     // doing previously (e.g., transitioning from Play All).
     private static void SwitchToFile(string path, string mpvOptions)
     {
-        if (IsPlaying && TryIpcSwitchToFile(path, mpvOptions))
+        if (IsPlaying && TryIpcSwitchToFile(path))
         {
             // _current still references the existing process; nothing to update.
         }
@@ -441,13 +441,13 @@ public static class PlayerHelper
         }
     }
 
-    private static bool TryIpcSwitchToFile(string path, string mpvOptions)
+    private static bool TryIpcSwitchToFile(string path)
     {
-        // Mirror the launch-time `loop` option as a runtime property so the
-        // user's Loop preference still applies when we IPC-switch instead of
-        // cold-starting. Other launch-only options (hwdec, cache, demuxer)
-        // can't be toggled mid-session and only take effect on next cold start.
-        bool loopFile = mpvOptions.Split(' ', StringSplitOptions.RemoveEmptyEntries).Contains("loop");
+        // Read AppSettings.Loop directly so the loop state is explicit rather
+        // than parsed out of the kill+launch options string. Other launch-only
+        // options (hwdec, cache, demuxer) can't be toggled mid-session and only
+        // take effect on next cold start.
+        bool loopFile = SettingsService.Load().Loop;
         return TrySendCommand("set", "loop-file", loopFile ? "inf" : "no")
             && TrySendCommand("set", "loop-playlist", "no")
             && TrySendCommand("playlist-clear")

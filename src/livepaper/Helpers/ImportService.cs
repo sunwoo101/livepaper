@@ -16,12 +16,32 @@ public static class ImportService
         if (!File.Exists(sourcePath)) return null;
         Directory.CreateDirectory(DownloadHelper.LibraryPath);
 
-        var safeTitle = SanitizeName(title);
-        if (string.IsNullOrEmpty(safeTitle)) safeTitle = "imported";
+        var baseTitle = SanitizeName(title);
+        if (string.IsNullOrEmpty(baseTitle)) baseTitle = "imported";
+        var sourceId = "import:" + sourcePath;
 
-        var videoPath = Path.Combine(DownloadHelper.LibraryPath, safeTitle + ".mp4");
-        var thumbPath = Path.Combine(DownloadHelper.LibraryPath, safeTitle + ".jpg");
-        var idPath = Path.Combine(DownloadHelper.LibraryPath, safeTitle + ".id");
+        // Resolve a target name. If the .mp4 already exists for this base
+        // title, look at the .id sidecar:
+        //   - id matches → re-import of the same source, replace in place
+        //   - id missing or differs → different item, append a counter
+        //     ("My Wallpaper (1)") so we don't overwrite someone else.
+        string safeTitle = baseTitle;
+        string videoPath, thumbPath, idPath;
+        for (int attempt = 0; ; attempt++)
+        {
+            safeTitle = attempt == 0 ? baseTitle : $"{baseTitle} ({attempt})";
+            videoPath = Path.Combine(DownloadHelper.LibraryPath, safeTitle + ".mp4");
+            thumbPath = Path.Combine(DownloadHelper.LibraryPath, safeTitle + ".jpg");
+            idPath = Path.Combine(DownloadHelper.LibraryPath, safeTitle + ".id");
+
+            if (!File.Exists(videoPath)) break; // free name
+
+            string existingId = "";
+            try { if (File.Exists(idPath)) existingId = File.ReadAllText(idPath).Trim(); } catch { }
+            if (existingId == sourceId) break; // same source — replace in place
+
+            if (attempt > 1000) return null; // sanity bail
+        }
 
         // Same-path guard (mirrors DownloadHelper) — never overwrite the source.
         bool samePath = Path.GetFullPath(sourcePath) == Path.GetFullPath(videoPath);
@@ -34,12 +54,11 @@ public static class ImportService
         // Best-effort thumbnail; absence is non-fatal.
         await TryExtractThumbnailAsync(videoPath, thumbPath);
 
-        var sourceId = "import:" + sourcePath;
         await File.WriteAllTextAsync(idPath, sourceId);
 
         return new LibraryItem
         {
-            Title = title,
+            Title = safeTitle,
             VideoPath = videoPath,
             ThumbnailPath = File.Exists(thumbPath) ? thumbPath : null,
             SourceId = sourceId

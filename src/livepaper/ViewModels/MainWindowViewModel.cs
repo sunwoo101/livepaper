@@ -265,10 +265,26 @@ public partial class MainWindowViewModel : ViewModelBase
                 StatusMessage = "Import failed";
                 return;
             }
-            // Drop any pre-existing card with the same path (re-import case).
-            var existing = LibraryWallpapers.FirstOrDefault(c => c.LibraryItem?.VideoPath == item.VideoPath);
-            if (existing != null) LibraryWallpapers.Remove(existing);
-            LibraryWallpapers.Add(MakeLibraryCard(item));
+            // Re-import dedup by SourceId: if a card already represents this
+            // source, swap the new card in at the same library index AND
+            // update any PlaylistItems entry pointing at the old card so
+            // playlist references stay valid + IsInPlaylist state is preserved.
+            var existing = !string.IsNullOrEmpty(item.SourceId)
+                ? LibraryWallpapers.FirstOrDefault(c => c.LibraryItem?.SourceId == item.SourceId)
+                : null;
+            var newCard = MakeLibraryCard(item);
+            if (existing != null)
+            {
+                int libIdx = LibraryWallpapers.IndexOf(existing);
+                int playlistIdx = PlaylistItems.IndexOf(existing);
+                newCard.IsInPlaylist = existing.IsInPlaylist;
+                LibraryWallpapers[libIdx] = newCard;
+                if (playlistIdx >= 0) PlaylistItems[playlistIdx] = newCard;
+            }
+            else
+            {
+                LibraryWallpapers.Add(newCard);
+            }
             StatusMessage = $"Imported: {item.Title}";
         }
         catch (Exception ex)

@@ -189,6 +189,7 @@
                                                   Foreground="{StaticResource Subtext}"/>
                                         <Button Content="Import"
                                                 Classes="ghost"
+                                                IsEnabled="{Binding !IsImporting}"
                                                 Command="{Binding OpenImportCommand}"/>
                                         <Button Content="Play All"
                                                 Classes="accent"
