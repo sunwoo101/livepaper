@@ -6,6 +6,15 @@ namespace livepaper.Helpers;
 
 public static class LibraryService
 {
+    public static void DeleteAll()
+    {
+        if (!Directory.Exists(DownloadHelper.LibraryPath)) return;
+        foreach (var file in Directory.GetFiles(DownloadHelper.LibraryPath))
+        {
+            try { File.Delete(file); } catch { }
+        }
+    }
+
     public static void Delete(LibraryItem item)
     {
         if (File.Exists(item.VideoPath)) File.Delete(item.VideoPath);
@@ -22,6 +31,7 @@ public static class LibraryService
 
         foreach (var mp4 in Directory.GetFiles(DownloadHelper.LibraryPath, "*.mp4"))
         {
+            if (!File.Exists(mp4)) continue; // skip broken symlinks
             string title = Path.GetFileNameWithoutExtension(mp4);
             string jpg = Path.ChangeExtension(mp4, ".jpg");
 

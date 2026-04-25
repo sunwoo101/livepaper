@@ -2,7 +2,6 @@ using Avalonia;
 using System;
 using System.Linq;
 using livepaper.Helpers;
-using livepaper.Models;
 
 namespace livepaper;
 
@@ -17,39 +16,67 @@ sealed class Program
             return;
         }
 
+        if (args.Contains("--monitor"))
+        {
+            AudioMonitor.RunDaemon();
+            return;
+        }
+
+        var action = args.FirstOrDefault(a => a.StartsWith("--action="))?.Substring("--action=".Length);
+        if (action != null)
+        {
+            switch (action)
+            {
+                case "toggle-mute":
+                    PlayerHelper.SendCommand("cycle", "mute");
+                    break;
+                case "toggle-pause":
+                    PlayerHelper.TogglePause();
+                    break;
+                case "stop":
+                    PlayerHelper.Stop();
+                    break;
+                case "play":
+                    PlayerHelper.Restore();
+                    break;
+                case "toggle-play":
+                    if (PlayerHelper.IsPlaying || PlayerHelper.IsTimedPlaylistActive())
+                        PlayerHelper.Stop();
+                    else
+                        PlayerHelper.Restore();
+                    break;
+                case "next-wallpaper":
+                    PlayerHelper.NextWallpaper();
+                    break;
+                case "previous-wallpaper":
+                    PlayerHelper.PreviousWallpaper();
+                    break;
+                case "random":
+                    PlayerHelper.ApplyRandom();
+                    break;
+            }
+            return;
+        }
+
         if (args.Contains("--random"))
         {
-            ApplyRandom();
+            PlayerHelper.ApplyRandom();
+            return;
+        }
+
+        if (args.Contains("--timer-daemon"))
+        {
+            PlayerHelper.RunTimerDaemon();
             return;
         }
 
         if (args.Contains("--restore"))
         {
-            var settings = SettingsService.Load();
-            var session = settings.LastSession;
-            if (session != null)
-            {
-                if (session.IsPlaylist && session.Paths.Count > 0)
-                    PlayerHelper.ApplyPlaylist(session.Paths, settings.BuildMpvPlaylistOptions(), session.Shuffle);
-                else if (session.Paths.Count > 0)
-                    PlayerHelper.Apply(session.Paths[0], settings.BuildMpvOptions());
-            }
+            PlayerHelper.Restore();
             return;
         }
 
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
-    }
-
-    private static void ApplyRandom()
-    {
-        var settings = SettingsService.Load();
-        var library = LibraryService.LoadAll();
-        if (library.Count == 0) return;
-
-        var pick = library[Random.Shared.Next(library.Count)];
-        PlayerHelper.Apply(pick.VideoPath, settings.BuildMpvOptions());
-        settings.LastSession = new LastSession { IsRandom = true, Paths = [pick.VideoPath] };
-        SettingsService.Save(settings);
     }
 
     public static AppBuilder BuildAvaloniaApp()

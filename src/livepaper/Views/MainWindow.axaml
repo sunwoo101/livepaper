@@ -17,7 +17,7 @@
 
     <Grid RowDefinitions="*,Auto">
 
-            <TabControl Grid.Row="0">
+            <TabControl Grid.Row="0" x:Name="MainTabControl">
 
                 <!-- ── Browse ── -->
                 <TabItem Header="Browse">
@@ -80,6 +80,30 @@
                                      IsVisible="{Binding IsLoading}"
                                      Height="3" CornerRadius="0"/>
 
+                        <!-- Selection toolbar -->
+                        <Border DockPanel.Dock="Bottom"
+                                IsVisible="{Binding AnyBrowseSelected}"
+                                Background="{StaticResource BgMantle}"
+                                BorderBrush="{StaticResource Surface0}"
+                                BorderThickness="0,1,0,0"
+                                Padding="16,10">
+                            <DockPanel>
+                                <TextBlock VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextColor}"
+                                           FontSize="13"
+                                           Text="{Binding BrowseSelectedCount, StringFormat='{}{0} selected'}"/>
+                                <StackPanel DockPanel.Dock="Right"
+                                            Orientation="Horizontal"
+                                            Spacing="8"
+                                            HorizontalAlignment="Right">
+                                    <Button Content="Download" Classes="accent"
+                                            Command="{Binding DownloadSelectedCommand}"/>
+                                    <Button Content="Cancel" Classes="ghost"
+                                            Command="{Binding ClearBrowseSelectionCommand}"/>
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+
                         <!-- Wallpaper grid -->
                         <ScrollViewer x:Name="BrowseScrollViewer"
                                       Padding="12,12,12,0">
@@ -121,6 +145,14 @@
                                                         HorizontalAlignment="Stretch"
                                                         Command="{Binding $parent[Window].DataContext.DownloadCommand}"
                                                         CommandParameter="{Binding}"/>
+
+                                                <!-- Selection overlay -->
+                                                <Border Grid.RowSpan="3"
+                                                        IsVisible="{Binding IsSelected}"
+                                                        BorderBrush="{StaticResource Accent}"
+                                                        BorderThickness="2.5"
+                                                        CornerRadius="10"
+                                                        IsHitTestVisible="False"/>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
@@ -133,94 +165,388 @@
 
                 <!-- ── Library ── -->
                 <TabItem Header="Library">
-                    <DockPanel>
+                    <Grid>
+                        <DockPanel>
 
-                        <Border DockPanel.Dock="Top"
-                                Background="{StaticResource BgBase}"
-                                Padding="16,12"
-                                BorderThickness="0,0,0,1"
-                                BorderBrush="{StaticResource Surface0}">
-                            <DockPanel>
-                                <TextBlock Text="Your downloaded wallpapers"
-                                           Foreground="{StaticResource Subtext}"
-                                           FontSize="13"
-                                           VerticalAlignment="Center"/>
-                                <StackPanel DockPanel.Dock="Right"
-                                            Orientation="Horizontal"
-                                            Spacing="10"
-                                            HorizontalAlignment="Right">
-                                    <CheckBox Content="Shuffle"
-                                              IsChecked="{Binding ShuffleLibrary}"
-                                              VerticalAlignment="Center"
-                                              Foreground="{StaticResource Subtext}"/>
-                                    <Button Content="Play All"
-                                            Classes="accent"
-                                            Command="{Binding PlayLibraryCommand}"/>
-                                </StackPanel>
-                            </DockPanel>
-                        </Border>
+                            <!-- Header -->
+                            <Border DockPanel.Dock="Top"
+                                    Background="{StaticResource BgBase}"
+                                    Padding="16,12"
+                                    BorderThickness="0,0,0,1"
+                                    BorderBrush="{StaticResource Surface0}">
+                                <DockPanel>
+                                    <TextBlock Text="Your downloaded wallpapers"
+                                               Foreground="{StaticResource Subtext}"
+                                               FontSize="13"
+                                               VerticalAlignment="Center"/>
+                                    <StackPanel DockPanel.Dock="Right"
+                                                Orientation="Horizontal"
+                                                Spacing="10"
+                                                HorizontalAlignment="Right">
+                                        <CheckBox Content="Shuffle"
+                                                  IsChecked="{Binding ShuffleLibrary}"
+                                                  VerticalAlignment="Center"
+                                                  Foreground="{StaticResource Subtext}"/>
+                                        <Button Content="Play All"
+                                                Classes="accent"
+                                                Command="{Binding PlayLibraryCommand}"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
 
-                        <ScrollViewer Padding="12,12,12,0">
-                            <ItemsControl ItemsSource="{Binding LibraryWallpapers}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel Margin="0,0,0,32"/>
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:WallpaperCardViewModel">
-                                        <Border Width="210" Margin="6" CornerRadius="10"
-                                                ClipToBounds="True"
-                                                Background="{StaticResource BgBase}">
-                                            <Grid RowDefinitions="150,*,Auto">
+                            <!-- Playlist panel (bottom) -->
+                            <Border DockPanel.Dock="Bottom"
+                                    Background="{StaticResource BgMantle}"
+                                    BorderBrush="{StaticResource Surface0}"
+                                    BorderThickness="0,1,0,0"
+                                    MinHeight="140">
+                                <DockPanel Margin="12,8">
 
-                                                <Button Grid.Row="0" Padding="0"
-                                                        Background="Transparent" BorderThickness="0"
-                                                        Command="{Binding $parent[Window].DataContext.OpenPreviewCommand}"
-                                                        CommandParameter="{Binding}">
-                                                    <asyncImageLoader:AdvancedImage
-                                                        Source="{Binding ThumbnailSource}"
-                                                        Stretch="UniformToFill"
-                                                        Width="210" Height="150"/>
-                                                </Button>
+                                    <!-- Playlist header -->
+                                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                        <TextBlock Text="PLAYLIST"
+                                                   FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource Muted}"
+                                                   LetterSpacing="2"
+                                                   VerticalAlignment="Center"/>
+                                        <StackPanel DockPanel.Dock="Right"
+                                                    Orientation="Horizontal"
+                                                    Spacing="6"
+                                                    HorizontalAlignment="Right">
+                                            <Button Classes="ghost"
+                                                    Width="32" Height="32" Padding="0"
+                                                    ToolTip.Tip="Playlist Settings"
+                                                    Command="{Binding TogglePlaylistSettingsCommand}">
+                                                <TextBlock Text="⚙" FontSize="18"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Button>
+                                            <Button Classes="ghost"
+                                                    Width="32" Height="32" Padding="0"
+                                                    ToolTip.Tip="Load Playlist"
+                                                    Command="{Binding OpenLoadPlaylistCommand}">
+                                                <TextBlock Text="📂" FontSize="16"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Button>
+                                            <Button Classes="ghost"
+                                                    Width="32" Height="32" Padding="0"
+                                                    ToolTip.Tip="Save Playlist"
+                                                    Command="{Binding OpenSavePlaylistCommand}">
+                                                <TextBlock Text="💾" FontSize="16"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Button>
+                                            <Button Content="▶ Play"
+                                                    Classes="accent"
+                                                    Command="{Binding PlayCustomPlaylistCommand}"/>
+                                        </StackPanel>
+                                    </DockPanel>
 
-                                                <TextBlock Grid.Row="1"
-                                                           Text="{Binding Title}"
-                                                           TextWrapping="Wrap"
-                                                           Foreground="{StaticResource TextColor}"
-                                                           Margin="10,8,10,4"
-                                                           FontSize="12"
-                                                           MaxLines="2"/>
+                                    <!-- Empty state -->
+                                    <TextBlock IsVisible="{Binding IsPlaylistEmpty}"
+                                               Text="Add wallpapers using the + button on each card"
+                                               Foreground="{StaticResource Muted}"
+                                               FontSize="12"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Center"/>
 
-                                                <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="10,4,10,10">
-                                                    <Button Grid.Column="0"
-                                                            Content="Apply"
-                                                            Classes="accent"
-                                                            HorizontalAlignment="Stretch"
-                                                            Command="{Binding $parent[Window].DataContext.ApplyCommand}"
-                                                            CommandParameter="{Binding}"/>
-                                                    <Button Grid.Column="1"
-                                                            Content="Delete"
-                                                            Classes="danger"
-                                                            Margin="6,0,0,0"
-                                                            Command="{Binding $parent[Window].DataContext.DeleteCommand}"
-                                                            CommandParameter="{Binding}"/>
+                                    <!-- Playlist thumbnails -->
+                                    <Grid IsVisible="{Binding !IsPlaylistEmpty}"
+                                          ClipToBounds="True">
+                                        <ScrollViewer x:Name="PlaylistScrollViewer"
+                                                      HorizontalScrollBarVisibility="Auto"
+                                                      VerticalScrollBarVisibility="Disabled">
+                                        <ItemsControl x:Name="PlaylistItemsControl"
+                                                      ItemsSource="{Binding PlaylistItems}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal" Spacing="6"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:WallpaperCardViewModel">
+                                                    <Border Classes="playlist-item"
+                                                            Width="100" CornerRadius="6"
+                                                            ClipToBounds="True"
+                                                            Background="{StaticResource BgBase}">
+                                                        <Border.Styles>
+                                                            <Style Selector="Border.playlist-item Grid.play-overlay">
+                                                                <Setter Property="Opacity" Value="0"/>
+                                                            </Style>
+                                                            <Style Selector="Border.playlist-item:pointerover Grid.play-overlay">
+                                                                <Setter Property="Opacity" Value="1"/>
+                                                            </Style>
+                                                        </Border.Styles>
+                                                        <Grid Height="90">
+                                                            <asyncImageLoader:AdvancedImage
+                                                                Source="{Binding ThumbnailSource}"
+                                                                Stretch="UniformToFill"
+                                                                Width="100" Height="90"/>
+                                                            <Grid Classes="play-overlay"
+                                                                  Background="#80000000"
+                                                                  IsHitTestVisible="False">
+                                                                <TextBlock Text="▶"
+                                                                           FontSize="28"
+                                                                           Foreground="White"
+                                                                           HorizontalAlignment="Center"
+                                                                           VerticalAlignment="Center"/>
+                                                            </Grid>
+                                                            <Border Background="#99000000"
+                                                                    VerticalAlignment="Bottom"
+                                                                    Padding="4,2">
+                                                                <TextBlock Text="{Binding Title}"
+                                                                           FontSize="10"
+                                                                           Foreground="White"
+                                                                           TextTrimming="CharacterEllipsis"/>
+                                                            </Border>
+                                                            <Button HorizontalAlignment="Right"
+                                                                    VerticalAlignment="Top"
+                                                                    Margin="0,5,5,0"
+                                                                    Width="24" Height="24"
+                                                                    CornerRadius="12" Padding="0"
+                                                                    BorderThickness="0"
+                                                                    Background="{StaticResource BgCrust}"
+                                                                    Command="{Binding $parent[Window].DataContext.RemoveFromPlaylistCommand}"
+                                                                    CommandParameter="{Binding}">
+                                                                <TextBlock Text="−"
+                                                                           FontSize="12" FontWeight="Bold"
+                                                                           Foreground="{StaticResource Accent}"
+                                                                           HorizontalAlignment="Center"
+                                                                           VerticalAlignment="Center"/>
+                                                            </Button>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        </ScrollViewer>
+                                        <!-- Drop position indicator -->
+                                        <Border x:Name="PlaylistDropIndicator"
+                                                Width="2" CornerRadius="1"
+                                                VerticalAlignment="Stretch"
+                                                HorizontalAlignment="Left"
+                                                Background="{StaticResource Accent}"
+                                                IsHitTestVisible="False"
+                                                IsVisible="False"/>
+                                    </Grid>
+
+                                </DockPanel>
+                            </Border>
+
+                            <!-- Selection toolbar (above playlist strip) -->
+                            <Border DockPanel.Dock="Bottom"
+                                    IsVisible="{Binding AnyLibrarySelected}"
+                                    Background="{StaticResource BgMantle}"
+                                    BorderBrush="{StaticResource Surface0}"
+                                    BorderThickness="0,1,0,0"
+                                    Padding="16,10">
+                                <DockPanel>
+                                    <TextBlock VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextColor}"
+                                               FontSize="13"
+                                               Text="{Binding LibrarySelectedCount, StringFormat='{}{0} selected'}"/>
+                                    <StackPanel DockPanel.Dock="Right"
+                                                Orientation="Horizontal"
+                                                Spacing="8"
+                                                HorizontalAlignment="Right">
+                                        <Button Content="Add to Playlist" Classes="ghost"
+                                                Command="{Binding AddSelectedToPlaylistCommand}"/>
+                                        <Button Content="Remove from Playlist" Classes="ghost"
+                                                Command="{Binding RemoveSelectedFromPlaylistCommand}"/>
+                                        <Button Content="Delete" Classes="danger"
+                                                Command="{Binding DeleteSelectedCommand}"/>
+                                        <Button Content="Cancel" Classes="ghost"
+                                                Command="{Binding ClearLibrarySelectionCommand}"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+
+                            <!-- Library grid -->
+                            <ScrollViewer x:Name="LibraryScrollViewer" Padding="12,12,12,0">
+                                <ItemsControl ItemsSource="{Binding LibraryWallpapers}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Margin="0,0,0,32"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:WallpaperCardViewModel">
+                                            <Border Width="210" Margin="6" CornerRadius="10"
+                                                    ClipToBounds="True"
+                                                    Background="{StaticResource BgBase}">
+                                                <Border.ContextMenu>
+                                                    <ContextMenu>
+                                                        <MenuItem Header="Add to Playlist"
+                                                                  Command="{Binding AddToPlaylistCommand}"/>
+                                                    </ContextMenu>
+                                                </Border.ContextMenu>
+                                                <Grid RowDefinitions="150,*,Auto">
+
+                                                    <!-- Thumbnail + checkmark -->
+                                                    <Grid Grid.Row="0">
+                                                        <Button Padding="0"
+                                                                Background="Transparent" BorderThickness="0"
+                                                                Command="{Binding $parent[Window].DataContext.OpenPreviewCommand}"
+                                                                CommandParameter="{Binding}">
+                                                            <asyncImageLoader:AdvancedImage
+                                                                Source="{Binding ThumbnailSource}"
+                                                                Stretch="UniformToFill"
+                                                                Width="210" Height="150"/>
+                                                        </Button>
+
+                                                        <!-- Checkmark badge -->
+                                                        <Button HorizontalAlignment="Right"
+                                                                VerticalAlignment="Top"
+                                                                Margin="0,5,5,0"
+                                                                Width="24" Height="24"
+                                                                CornerRadius="12" Padding="0"
+                                                                BorderThickness="0"
+                                                                Background="{StaticResource BgCrust}"
+                                                                Command="{Binding AddToPlaylistCommand}">
+                                                            <TextBlock Text="{Binding CheckmarkText}"
+                                                                       FontSize="12" FontWeight="Bold"
+                                                                       Foreground="{StaticResource Accent}"
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"/>
+                                                        </Button>
+                                                    </Grid>
+
+                                                    <TextBlock Grid.Row="1"
+                                                               Text="{Binding Title}"
+                                                               TextWrapping="Wrap"
+                                                               Foreground="{StaticResource TextColor}"
+                                                               Margin="10,8,10,4"
+                                                               FontSize="12"
+                                                               MaxLines="2"/>
+
+                                                    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="10,4,10,10">
+                                                        <Button Grid.Column="0"
+                                                                Content="Apply"
+                                                                Classes="accent"
+                                                                HorizontalAlignment="Stretch"
+                                                                Command="{Binding $parent[Window].DataContext.ApplyCommand}"
+                                                                CommandParameter="{Binding}"/>
+                                                        <Button Grid.Column="1"
+                                                                Content="Delete"
+                                                                Classes="danger"
+                                                                Margin="6,0,0,0"
+                                                                Command="{Binding $parent[Window].DataContext.DeleteCommand}"
+                                                                CommandParameter="{Binding}"/>
+                                                    </Grid>
+
+                                                    <!-- Selection overlay -->
+                                                    <Border Grid.RowSpan="3"
+                                                            IsVisible="{Binding IsSelected}"
+                                                            BorderBrush="{StaticResource Accent}"
+                                                            BorderThickness="2.5"
+                                                            CornerRadius="10"
+                                                            IsHitTestVisible="False"/>
+
                                                 </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
 
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
+                        </DockPanel>
 
-                    </DockPanel>
+                        <!-- Playlist settings overlay -->
+                        <Grid IsVisible="{Binding IsPlaylistSettingsOpen}"
+                              Background="#B2000000">
+                            <Border Background="{StaticResource BgBase}" CornerRadius="12" Padding="24"
+                                    Width="420" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <StackPanel Spacing="16">
+                                    <TextBlock Text="Playlist Settings" FontSize="15" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextColor}"/>
+
+                                    <!-- Order -->
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="ORDER"
+                                                   FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource Muted}"
+                                                   LetterSpacing="2"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <ToggleButton Content="Sequential"
+                                                          IsChecked="{Binding IsSequential}">
+                                                <ToggleButton.Styles>
+                                                    <Style Selector="ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
+                                                        <Setter Property="Background" Value="{StaticResource Accent}"/>
+                                                    </Style>
+                                                    <Style Selector="ToggleButton:checked">
+                                                        <Setter Property="Foreground" Value="{StaticResource AccentFg}"/>
+                                                    </Style>
+                                                </ToggleButton.Styles>
+                                            </ToggleButton>
+                                            <ToggleButton Content="Shuffle"
+                                                          IsChecked="{Binding PlaylistShuffle}">
+                                                <ToggleButton.Styles>
+                                                    <Style Selector="ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
+                                                        <Setter Property="Background" Value="{StaticResource Accent}"/>
+                                                    </Style>
+                                                    <Style Selector="ToggleButton:checked">
+                                                        <Setter Property="Foreground" Value="{StaticResource AccentFg}"/>
+                                                    </Style>
+                                                </ToggleButton.Styles>
+                                            </ToggleButton>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <CheckBox Content="Override global rotation settings"
+                                              IsChecked="{Binding OverrideGlobalSettings}"
+                                              Foreground="{StaticResource TextColor}"/>
+
+                                    <!-- Interval (per-playlist override) -->
+                                    <StackPanel Spacing="8" IsEnabled="{Binding OverrideGlobalSettings}">
+                                        <TextBlock Text="SWITCH EVERY"
+                                                   FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource Muted}"
+                                                   LetterSpacing="2"/>
+                                        <CheckBox Content="Switch when video ends"
+                                                  IsChecked="{Binding AdvanceOnVideoEnd}"
+                                                  Foreground="{StaticResource TextColor}"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="12"
+                                                    IsEnabled="{Binding !AdvanceOnVideoEnd}">
+                                            <StackPanel Spacing="6">
+                                                <TextBlock Text="Hours" FontSize="12"
+                                                           Foreground="{StaticResource Subtext}"/>
+                                                <NumericUpDown Value="{Binding IntervalHours}"
+                                                               Minimum="0" Maximum="99"
+                                                               FormatString="0" Width="108"/>
+                                            </StackPanel>
+                                            <StackPanel Spacing="6">
+                                                <TextBlock Text="Minutes" FontSize="12"
+                                                           Foreground="{StaticResource Subtext}"/>
+                                                <NumericUpDown Value="{Binding IntervalMinutes}"
+                                                               Minimum="0" Maximum="59"
+                                                               FormatString="0" Width="108"/>
+                                            </StackPanel>
+                                            <StackPanel Spacing="6">
+                                                <TextBlock Text="Seconds" FontSize="12"
+                                                           Foreground="{StaticResource Subtext}"/>
+                                                <NumericUpDown Value="{Binding IntervalSeconds}"
+                                                               Minimum="0" Maximum="59"
+                                                               FormatString="0" Width="108"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <Button Content="Close"
+                                            Classes="ghost"
+                                            HorizontalAlignment="Right"
+                                            Command="{Binding ClosePlaylistSettingsCommand}"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                    </Grid>
                 </TabItem>
 
                 <!-- ── Settings ── -->
                 <TabItem Header="Settings">
                     <ScrollViewer>
-                        <StackPanel Margin="28" Spacing="20" MaxWidth="500" HorizontalAlignment="Left">
+                        <StackPanel Margin="28" Spacing="20">
 
                             <TextBlock Text="Playback"
                                        FontSize="11" FontWeight="SemiBold"
@@ -234,6 +560,121 @@
                                               Foreground="{StaticResource TextColor}"/>
                                     <CheckBox Content="Disable cache" IsChecked="{Binding DisableCache}"
                                               Foreground="{StaticResource TextColor}"/>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4,0,0"
+                                          IsEnabled="{Binding !NoAudio}">
+                                        <TextBlock Grid.Column="0" Text="Volume"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextColor}"
+                                                   Width="80"/>
+                                        <Slider Grid.Column="1"
+                                                Minimum="0" Maximum="100"
+                                                TickFrequency="1"
+                                                IsSnapToTickEnabled="True"
+                                                Value="{Binding Volume}"
+                                                VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding Volume}"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource Subtext}"
+                                                   Width="30" TextAlignment="Right"
+                                                   Margin="8,0,0,0"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="PLAYLIST"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Muted}"
+                                       LetterSpacing="2"/>
+                            <Border Background="{StaticResource BgBase}" CornerRadius="10" Padding="16">
+                                <StackPanel Spacing="12">
+                                    <CheckBox Content="Switch when video ends"
+                                              IsChecked="{Binding GlobalAdvanceOnVideoEnd}"
+                                              Foreground="{StaticResource TextColor}"/>
+                                    <StackPanel Spacing="6"
+                                                IsEnabled="{Binding !GlobalAdvanceOnVideoEnd}">
+                                        <TextBlock Text="SWITCH EVERY"
+                                                   FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource Muted}"
+                                                   LetterSpacing="2"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="12">
+                                            <StackPanel Spacing="6">
+                                                <TextBlock Text="Hours" FontSize="12"
+                                                           Foreground="{StaticResource Subtext}"/>
+                                                <NumericUpDown Value="{Binding GlobalIntervalHours}"
+                                                               Minimum="0" Maximum="99"
+                                                               FormatString="0" Width="108"/>
+                                            </StackPanel>
+                                            <StackPanel Spacing="6">
+                                                <TextBlock Text="Minutes" FontSize="12"
+                                                           Foreground="{StaticResource Subtext}"/>
+                                                <NumericUpDown Value="{Binding GlobalIntervalMinutes}"
+                                                               Minimum="0" Maximum="59"
+                                                               FormatString="0" Width="108"/>
+                                            </StackPanel>
+                                            <StackPanel Spacing="6">
+                                                <TextBlock Text="Seconds" FontSize="12"
+                                                           Foreground="{StaticResource Subtext}"/>
+                                                <NumericUpDown Value="{Binding GlobalIntervalSeconds}"
+                                                               Minimum="0" Maximum="59"
+                                                               FormatString="0" Width="108"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="AUTO-MUTE"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Muted}"
+                                       LetterSpacing="2"/>
+                            <Border Background="{StaticResource BgBase}" CornerRadius="10" Padding="16">
+                                <StackPanel Spacing="12">
+                                    <CheckBox Content="Mute when system audio plays"
+                                              IsChecked="{Binding AutoMute}"
+                                              Foreground="{StaticResource TextColor}"/>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,12,Auto,12,Auto"
+                                          IsEnabled="{Binding AutoMute}">
+                                        <TextBlock Grid.Row="0" Grid.Column="0"
+                                                   Text="Mute after"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextColor}"
+                                                   Margin="0,0,16,0"/>
+                                        <NumericUpDown Grid.Row="0" Grid.Column="1"
+                                                       Value="{Binding AutoMuteDelayMs}"
+                                                       Minimum="0" Maximum="30000" Increment="100"
+                                                       FormatString="0"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="2"
+                                                   Text="ms" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource Subtext}"
+                                                   Margin="8,0,0,0"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="0"
+                                                   Text="Unmute after"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextColor}"
+                                                   Margin="0,0,16,0"/>
+                                        <NumericUpDown Grid.Row="2" Grid.Column="1"
+                                                       Value="{Binding AutoUnmuteDelayMs}"
+                                                       Minimum="0" Maximum="30000" Increment="100"
+                                                       FormatString="0"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="2"
+                                                   Text="ms" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource Subtext}"
+                                                   Margin="8,0,0,0"/>
+                                        <TextBlock Grid.Row="4" Grid.Column="0"
+                                                   Text="Minimum level"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextColor}"
+                                                   Margin="0,0,16,0"/>
+                                        <NumericUpDown Grid.Row="4" Grid.Column="1"
+                                                       Value="{Binding AutoMuteThresholdDb}"
+                                                       Minimum="-80" Maximum="0" Increment="1"
+                                                       FormatString="0"/>
+                                        <TextBlock Grid.Row="4" Grid.Column="2"
+                                                   Text="dB" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource Subtext}"
+                                                   Margin="8,0,0,0"/>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
 
@@ -290,6 +731,43 @@
                                 </Grid>
                             </Border>
 
+                            <TextBlock Text="BEHAVIOR"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Muted}"
+                                       LetterSpacing="2"/>
+                            <Border Background="{StaticResource BgBase}" CornerRadius="10" Padding="16">
+                                <CheckBox Content="Resume from last wallpaper"
+                                          IsChecked="{Binding ResumeFromLast}"
+                                          Foreground="{StaticResource TextColor}"/>
+                            </Border>
+
+                            <TextBlock Text="SOURCES"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Muted}"
+                                       LetterSpacing="2"/>
+                            <Border Background="{StaticResource BgBase}" CornerRadius="10" Padding="16">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Wallpaper Engine workshop folder"
+                                               Foreground="{StaticResource TextColor}"/>
+                                    <Grid ColumnDefinitions="*,Auto" >
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding WallpaperEnginePath}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource Subtext}"
+                                                   ToolTip.Tip="{Binding WallpaperEnginePath}"
+                                                   Margin="0,0,8,0"/>
+                                        <Button Grid.Column="1"
+                                                Content="Browse"
+                                                Classes="ghost"
+                                                Command="{Binding PickWallpaperEngineFolderCommand}"/>
+                                    </Grid>
+                                    <CheckBox Content="Copy files instead of symlinking"
+                                              IsChecked="{Binding WeCopyFiles}"
+                                              Foreground="{StaticResource TextColor}"/>
+                                </StackPanel>
+                            </Border>
+
                             <TextBlock Text="COMMAND PREVIEW"
                                        FontSize="11" FontWeight="SemiBold"
                                        Foreground="{StaticResource Muted}"
@@ -302,10 +780,130 @@
                                            Foreground="{StaticResource Accent}"/>
                             </Border>
 
-                            <Button Content="Reset to Defaults"
-                                    Classes="ghost"
-                                    Command="{Binding ResetMpvOptionsCommand}"/>
+                            <TextBlock Text="KEYBINDS"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Muted}"
+                                       LetterSpacing="2"/>
+                            <Border Background="{StaticResource BgCrust}" CornerRadius="10" Padding="14">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="Bind these commands in your compositor config:"
+                                               Foreground="{StaticResource Subtext}"
+                                               FontSize="12"/>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,8,Auto,8,Auto,8,Auto,8,Auto,8,Auto,8,Auto,8,Auto">
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Toggle mute"
+                                                   Foreground="{StaticResource TextColor}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1"
+                                                   Text="livepaper --action=toggle-mute"
+                                                   FontFamily="Monospace" FontSize="12"
+                                                   Foreground="{StaticResource Accent}" VerticalAlignment="Center"/>
+                                        <Button Grid.Row="0" Grid.Column="2" Content="Copy" Classes="ghost" FontSize="11" Margin="8,0,0,0"
+                                                Command="{Binding CopyTextCommand}" CommandParameter="livepaper --action=toggle-mute"/>
 
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Toggle pause"
+                                                   Foreground="{StaticResource TextColor}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="1"
+                                                   Text="livepaper --action=toggle-pause"
+                                                   FontFamily="Monospace" FontSize="12"
+                                                   Foreground="{StaticResource Accent}" VerticalAlignment="Center"/>
+                                        <Button Grid.Row="2" Grid.Column="2" Content="Copy" Classes="ghost" FontSize="11" Margin="8,0,0,0"
+                                                Command="{Binding CopyTextCommand}" CommandParameter="livepaper --action=toggle-pause"/>
+
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Stop"
+                                                   Foreground="{StaticResource TextColor}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                        <TextBlock Grid.Row="4" Grid.Column="1"
+                                                   Text="livepaper --action=stop"
+                                                   FontFamily="Monospace" FontSize="12"
+                                                   Foreground="{StaticResource Accent}" VerticalAlignment="Center"/>
+                                        <Button Grid.Row="4" Grid.Column="2" Content="Copy" Classes="ghost" FontSize="11" Margin="8,0,0,0"
+                                                Command="{Binding CopyTextCommand}" CommandParameter="livepaper --action=stop"/>
+
+                                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Play (restore)"
+                                                   Foreground="{StaticResource TextColor}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                        <TextBlock Grid.Row="6" Grid.Column="1"
+                                                   Text="livepaper --action=play"
+                                                   FontFamily="Monospace" FontSize="12"
+                                                   Foreground="{StaticResource Accent}" VerticalAlignment="Center"/>
+                                        <Button Grid.Row="6" Grid.Column="2" Content="Copy" Classes="ghost" FontSize="11" Margin="8,0,0,0"
+                                                Command="{Binding CopyTextCommand}" CommandParameter="livepaper --action=play"/>
+
+                                        <TextBlock Grid.Row="8" Grid.Column="0" Text="Toggle stop/play"
+                                                   Foreground="{StaticResource TextColor}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                        <TextBlock Grid.Row="8" Grid.Column="1"
+                                                   Text="livepaper --action=toggle-play"
+                                                   FontFamily="Monospace" FontSize="12"
+                                                   Foreground="{StaticResource Accent}" VerticalAlignment="Center"/>
+                                        <Button Grid.Row="8" Grid.Column="2" Content="Copy" Classes="ghost" FontSize="11" Margin="8,0,0,0"
+                                                Command="{Binding CopyTextCommand}" CommandParameter="livepaper --action=toggle-play"/>
+
+                                        <TextBlock Grid.Row="10" Grid.Column="0" Text="Next wallpaper"
+                                                   Foreground="{StaticResource TextColor}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                        <TextBlock Grid.Row="10" Grid.Column="1"
+                                                   Text="livepaper --action=next-wallpaper"
+                                                   FontFamily="Monospace" FontSize="12"
+                                                   Foreground="{StaticResource Accent}" VerticalAlignment="Center"/>
+                                        <Button Grid.Row="10" Grid.Column="2" Content="Copy" Classes="ghost" FontSize="11" Margin="8,0,0,0"
+                                                Command="{Binding CopyTextCommand}" CommandParameter="livepaper --action=next-wallpaper"/>
+
+                                        <TextBlock Grid.Row="12" Grid.Column="0" Text="Previous wallpaper"
+                                                   Foreground="{StaticResource TextColor}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                        <TextBlock Grid.Row="12" Grid.Column="1"
+                                                   Text="livepaper --action=previous-wallpaper"
+                                                   FontFamily="Monospace" FontSize="12"
+                                                   Foreground="{StaticResource Accent}" VerticalAlignment="Center"/>
+                                        <Button Grid.Row="12" Grid.Column="2" Content="Copy" Classes="ghost" FontSize="11" Margin="8,0,0,0"
+                                                Command="{Binding CopyTextCommand}" CommandParameter="livepaper --action=previous-wallpaper"/>
+
+                                        <TextBlock Grid.Row="14" Grid.Column="0" Text="Random wallpaper"
+                                                   Foreground="{StaticResource TextColor}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                        <TextBlock Grid.Row="14" Grid.Column="1"
+                                                   Text="livepaper --action=random"
+                                                   FontFamily="Monospace" FontSize="12"
+                                                   Foreground="{StaticResource Accent}" VerticalAlignment="Center"/>
+                                        <Button Grid.Row="14" Grid.Column="2" Content="Copy" Classes="ghost" FontSize="11" Margin="8,0,0,0"
+                                                Command="{Binding CopyTextCommand}" CommandParameter="livepaper --action=random"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="AUTOSTART"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Muted}"
+                                       LetterSpacing="2"/>
+                            <Border Background="{StaticResource BgCrust}" CornerRadius="10" Padding="14">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="Add this to your compositor's autostart to restore your wallpaper on login:"
+                                               Foreground="{StaticResource Subtext}"
+                                               FontSize="12"/>
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <TextBlock Grid.Column="0" Text="Restore wallpaper"
+                                                   Foreground="{StaticResource TextColor}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="livepaper --restore"
+                                                   FontFamily="Monospace" FontSize="12"
+                                                   Foreground="{StaticResource Accent}" VerticalAlignment="Center"/>
+                                        <Button Grid.Column="2" Content="Copy" Classes="ghost" FontSize="11" Margin="8,0,0,0"
+                                                Command="{Binding CopyTextCommand}" CommandParameter="livepaper --restore"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Reset to Defaults"
+                                        Classes="ghost"
+                                        Command="{Binding ResetMpvOptionsCommand}"/>
+                                <Button Content="Clear Library"
+                                        Classes="danger"
+                                        Command="{Binding OpenClearLibraryCommand}"/>
+                            </StackPanel>
 
                         </StackPanel>
                     </ScrollViewer>
@@ -410,6 +1008,112 @@
                 </StackPanel>
             </Border>
         </Grid>
+
+        <!-- Clear library confirmation modal -->
+        <Grid Grid.RowSpan="2" IsVisible="{Binding IsClearLibraryOpen}" Background="#B2000000">
+            <Border Background="{StaticResource BgBase}" CornerRadius="12" Padding="28"
+                    Width="380" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel Spacing="14">
+                    <TextBlock Text="Clear Library" FontSize="15" FontWeight="SemiBold"
+                               Foreground="{StaticResource Danger}"/>
+                    <TextBlock Text="This will permanently delete all downloaded wallpapers from disk. This cannot be undone."
+                               FontSize="12" Foreground="{StaticResource TextColor}" TextWrapping="Wrap"/>
+                    <TextBlock FontSize="12" Foreground="{StaticResource Muted}"
+                               IsVisible="{Binding !ClearLibraryReady}">
+                        <TextBlock.Text>
+                            <MultiBinding StringFormat="You can confirm in {0}s…">
+                                <Binding Path="ClearLibraryCountdown"/>
+                            </MultiBinding>
+                        </TextBlock.Text>
+                    </TextBlock>
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                        <Button Content="Cancel" Classes="ghost"
+                                Command="{Binding CancelClearLibraryCommand}"/>
+                        <Button Content="Delete All" Classes="danger"
+                                IsEnabled="{Binding ClearLibraryReady}"
+                                Command="{Binding ConfirmClearLibraryCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Save playlist modal -->
+        <Grid Grid.RowSpan="2" IsVisible="{Binding IsSavePlaylistOpen}" Background="#B2000000">
+            <Border Background="{StaticResource BgBase}" CornerRadius="12" Padding="24"
+                    Width="380" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel Spacing="14">
+                    <TextBlock Text="Save Playlist" FontSize="15" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextColor}"/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="NAME"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Muted}"
+                                   LetterSpacing="2"/>
+                        <AutoCompleteBox Text="{Binding SavePlaylistName, Mode=TwoWay}"
+                                         ItemsSource="{Binding AvailablePlaylists}"
+                                         MinimumPrefixLength="0"
+                                         FilterMode="ContainsOrdinalCaseSensitive"
+                                         PlaceholderText="My playlist"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                        <Button Content="Cancel" Classes="ghost"
+                                Command="{Binding CancelSavePlaylistCommand}"/>
+                        <Button Content="Save" Classes="accent"
+                                IsDefault="True"
+                                Command="{Binding ConfirmSavePlaylistCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Load playlist modal -->
+        <Grid Grid.RowSpan="2" IsVisible="{Binding IsLoadPlaylistOpen}" Background="#B2000000">
+            <Border Background="{StaticResource BgBase}" CornerRadius="12" Padding="24"
+                    Width="380" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel Spacing="14">
+                    <TextBlock Text="Load Playlist" FontSize="15" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextColor}"/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="PLAYLIST"
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Muted}"
+                                   LetterSpacing="2"/>
+                        <ComboBox ItemsSource="{Binding AvailablePlaylists}"
+                                  SelectedItem="{Binding SelectedPlaylistToLoad}"
+                                  HorizontalAlignment="Stretch"
+                                  IsVisible="{Binding AvailablePlaylists.Count}"/>
+                        <TextBlock Text="No saved playlists"
+                                   FontSize="12"
+                                   Foreground="{StaticResource Muted}"
+                                   IsVisible="{Binding !AvailablePlaylists.Count}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                        <Button Content="Cancel" Classes="ghost"
+                                Command="{Binding CancelLoadPlaylistCommand}"/>
+                        <Button Content="Load" Classes="accent"
+                                IsDefault="True"
+                                IsEnabled="{Binding SelectedPlaylistToLoad, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                Command="{Binding ConfirmLoadPlaylistCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Drag preview (floats with cursor) -->
+        <Canvas x:Name="DragPreviewCanvas"
+                Grid.RowSpan="2"
+                IsHitTestVisible="False"
+                IsVisible="False">
+            <Border x:Name="DragPreviewBorder"
+                    Width="50" Height="45"
+                    CornerRadius="4"
+                    ClipToBounds="True"
+                    Opacity="0.85">
+                <asyncImageLoader:AdvancedImage x:Name="DragPreviewImage"
+                    Stretch="UniformToFill"
+                    Width="50" Height="45"/>
+            </Border>
+        </Canvas>
 
     </Grid>
 </Window>
