@@ -1,8 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using livepaper.Helpers;
@@ -38,17 +42,71 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private string? _errorMessage;
     [ObservableProperty] private string _errorTitle = "Download Failed";
 
+    [ObservableProperty] private bool _isClearLibraryOpen;
+    [ObservableProperty] private int _clearLibraryCountdown;
+    [ObservableProperty] private bool _clearLibraryReady;
+
+    private CancellationTokenSource? _clearLibraryCts;
+
     partial void OnDownloadProgressChanged(double value) =>
         DownloadIndeterminate = value < 0.01;
 
     [RelayCommand]
     private void DismissError() => ErrorMessage = null;
 
+    [RelayCommand]
+    private void OpenClearLibrary()
+    {
+        _clearLibraryCts?.Cancel();
+        _clearLibraryCts?.Dispose();
+        _clearLibraryCts = new CancellationTokenSource();
+        ClearLibraryCountdown = 5;
+        ClearLibraryReady = false;
+        IsClearLibraryOpen = true;
+        var ct = _clearLibraryCts.Token;
+        Task.Run(async () =>
+        {
+            for (int i = 4; i >= 0; i--)
+            {
+                try { await Task.Delay(1000, ct); }
+                catch (OperationCanceledException) { return; }
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    ClearLibraryCountdown = i;
+                    if (i == 0) ClearLibraryReady = true;
+                });
+            }
+        });
+    }
+
+    [RelayCommand]
+    private void CancelClearLibrary()
+    {
+        _clearLibraryCts?.Cancel();
+        IsClearLibraryOpen = false;
+    }
+
+    [RelayCommand]
+    private void ConfirmClearLibrary()
+    {
+        if (!ClearLibraryReady) return;
+        LibraryService.DeleteAll();
+        LibraryWallpapers.Clear();
+        PlaylistItems.Clear();
+        IsPlaylistEmpty = true;
+        IsClearLibraryOpen = false;
+        StatusMessage = "Library cleared";
+    }
 
     private bool _isSearchMode;
     private string _currentQuery = "";
     private int _loadGeneration;
     public bool NoMorePages { get; private set; }
+
+    // source settings
+    [ObservableProperty] private string _wallpaperEnginePath = "";
+    [ObservableProperty] private bool _weCopyFiles;
+    [ObservableProperty] private bool _resumeFromLast;
 
     // mpvpaper settings
     [ObservableProperty] private bool _loop;
@@ -57,16 +115,126 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private int _demuxerMaxBytes;
     [ObservableProperty] private int _demuxerMaxBackBytes;
     [ObservableProperty] private string _hwDec = "";
+    [ObservableProperty] private int _volume;
     [ObservableProperty] private string _mpvOptionsPreview = "";
+    [ObservableProperty] private bool _autoMute;
+    [ObservableProperty] private decimal _autoMuteDelayMs;
+    [ObservableProperty] private decimal _autoUnmuteDelayMs;
+    [ObservableProperty] private decimal _autoMuteThresholdDb;
+
+    // Playlist state
+    [ObservableProperty] private ObservableCollection<WallpaperCardViewModel> _playlistItems = [];
+    [ObservableProperty] private bool _isPlaylistEmpty = true;
+    [ObservableProperty] private bool _isPlaylistSettingsOpen;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSequential))]
+    private bool _playlistShuffle;
+
+    public bool IsSequential
+    {
+        get => !PlaylistShuffle;
+        set => PlaylistShuffle = !value;
+    }
+    [ObservableProperty] private decimal _intervalHours = 0;
+    [ObservableProperty] private decimal _intervalMinutes = 30;
+    [ObservableProperty] private decimal _intervalSeconds = 0;
+
+    partial void OnAutoMuteChanged(bool value)
+    {
+        _settings.AutoMute = value;
+        if (value) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb);
+        else AudioMonitor.Stop();
+        SettingsService.Save(_settings);
+    }
+
+    partial void OnAutoMuteDelayMsChanged(decimal value)
+    {
+        _settings.AutoMuteDelayMs = (int)value;
+        if (_settings.AutoMute) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb);
+        SettingsService.Save(_settings);
+    }
+
+    partial void OnAutoUnmuteDelayMsChanged(decimal value)
+    {
+        _settings.AutoUnmuteDelayMs = (int)value;
+        if (_settings.AutoMute) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb);
+        SettingsService.Save(_settings);
+    }
+
+    partial void OnAutoMuteThresholdDbChanged(decimal value)
+    {
+        _settings.AutoMuteThresholdDb = (double)value;
+        if (_settings.AutoMute) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb);
+        SettingsService.Save(_settings);
+    }
+
+    partial void OnWallpaperEnginePathChanged(string value)
+    {
+        _settings.WallpaperEnginePath = value;
+        ((WallpaperEngineService)Sources.First(s => s is WallpaperEngineService)).WorkshopPath = value;
+        if (SelectedSource is WallpaperEngineService) _ = LoadWallpapersAsync();
+        SettingsService.Save(_settings);
+    }
+
+    partial void OnWeCopyFilesChanged(bool value)
+    {
+        _settings.WeCopyFiles = value;
+        SettingsService.Save(_settings);
+    }
+
+    partial void OnResumeFromLastChanged(bool value)
+    {
+        _settings.ResumeFromLast = value;
+        SettingsService.Save(_settings);
+    }
+
+    [RelayCommand]
+    private async Task PickWallpaperEngineFolderAsync()
+    {
+        if (PickFolderDialog == null) return;
+        var path = await PickFolderDialog();
+        if (path != null) WallpaperEnginePath = path;
+    }
+
+    partial void OnPlaylistShuffleChanged(bool value) { SavePlaylistStateDebounced(); ApplyTimedSettingsIfRunning(); }
+    partial void OnIntervalHoursChanged(decimal value) { SavePlaylistStateDebounced(); ApplyTimedSettingsIfRunning(); }
+    partial void OnIntervalMinutesChanged(decimal value) { SavePlaylistStateDebounced(); ApplyTimedSettingsIfRunning(); }
+    partial void OnIntervalSecondsChanged(decimal value) { SavePlaylistStateDebounced(); ApplyTimedSettingsIfRunning(); }
+
+    private void ApplyTimedSettingsIfRunning()
+    {
+        if (_settings.LastSession?.IsTimedPlaylist != true || !PlayerHelper.IsPlaying) return;
+        int secs = GetIntervalSeconds();
+        if (secs > 0) PlayerHelper.UpdateTimedSettings(PlaylistShuffle, secs);
+    }
+
+    private int _lastSelectedIndex = -1;
+    private int _lastBrowseSelectedIndex = -1;
+
+    public Func<Task<string?>>? OpenSaveDialog { get; set; }
+    public Func<Task<string?>>? OpenLoadDialog { get; set; }
+    public Func<Task<string?>>? PickFolderDialog { get; set; }
+    public Func<string, Task>? CopyToClipboard { get; set; }
+
+    [RelayCommand]
+    private async Task CopyText(string text)
+    {
+        if (CopyToClipboard != null) await CopyToClipboard(text);
+    }
 
     private readonly Models.AppSettings _settings;
+    private CancellationTokenSource? _volumeSaveCts;
+    private CancellationTokenSource? _playlistSaveCts;
+
+    private static string PlaylistStatePath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".config", "livepaper", "playlist_state.json");
 
     public MainWindowViewModel()
     {
         _selectedSource = Sources[0];
         _settings = SettingsService.Load();
 
-        // Set backing fields directly to avoid triggering saves on startup
 #pragma warning disable MVVMTK0034
         _loop = _settings.Loop;
         _noAudio = _settings.NoAudio;
@@ -74,19 +242,69 @@ public partial class MainWindowViewModel : ViewModelBase
         _demuxerMaxBytes = _settings.DemuxerMaxBytes;
         _demuxerMaxBackBytes = _settings.DemuxerMaxBackBytes;
         _hwDec = _settings.HwDec;
+        _volume = _settings.Volume;
+        _autoMute = _settings.AutoMute;
+        _autoMuteDelayMs = _settings.AutoMuteDelayMs;
+        _autoUnmuteDelayMs = _settings.AutoUnmuteDelayMs;
+        _autoMuteThresholdDb = (decimal)_settings.AutoMuteThresholdDb;
+        _wallpaperEnginePath = _settings.WallpaperEnginePath;
+        _weCopyFiles = _settings.WeCopyFiles;
+        _resumeFromLast = _settings.ResumeFromLast;
         _mpvOptionsPreview = _settings.BuildMpvOptions();
+        ((WallpaperEngineService)Sources.First(s => s is WallpaperEngineService)).WorkshopPath = _settings.WallpaperEnginePath;
 #pragma warning restore MVVMTK0034
 
-        LoadLibrary();
+        if (_settings.AutoMute)
+            AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb);
 
+        PlaylistItems.CollectionChanged += (_, _) =>
+        {
+            IsPlaylistEmpty = PlaylistItems.Count == 0;
+            SavePlaylistStateDebounced();
+        };
+
+        PlayerHelper.OnTimedPlaylistStopped = () =>
+            Dispatcher.UIThread.Post(() => StatusMessage = "");
+
+        LoadLibrary();
+        RestorePlaylistState();
+
+        var s = _settings.LastSession;
+        if (s != null && PlayerHelper.IsPlaying)
+        {
+            if (s.IsTimedPlaylist && PlaylistItems.Count > 0)
+            {
+                PlayerHelper.ResumeTimedTimer();
+                StatusMessage = $"Playing playlist ({PlaylistItems.Count} wallpapers, switching every {GetIntervalDisplay()})";
+            }
+            else if (s.IsPlaylist)
+                StatusMessage = $"Playing playlist ({s.Paths.Count} wallpapers)";
+        }
     }
 
+    // Settings change handlers
     partial void OnLoopChanged(bool value) => SaveAndRebuild();
-    partial void OnNoAudioChanged(bool value) => SaveAndRebuild();
+    partial void OnNoAudioChanged(bool value)
+    {
+        SaveAndRebuild();
+        Task.Run(() => PlayerHelper.SetMute(value));
+    }
     partial void OnDisableCacheChanged(bool value) => SaveAndRebuild();
     partial void OnDemuxerMaxBytesChanged(int value) => SaveAndRebuild();
     partial void OnDemuxerMaxBackBytesChanged(int value) => SaveAndRebuild();
     partial void OnHwDecChanged(string value) => SaveAndRebuild();
+    partial void OnVolumeChanged(int value)
+    {
+        Task.Run(() => PlayerHelper.SetVolume(value));
+
+        _volumeSaveCts?.Cancel();
+        _volumeSaveCts?.Dispose();
+        var cts = _volumeSaveCts = new CancellationTokenSource();
+        Task.Delay(400, cts.Token).ContinueWith(t =>
+        {
+            if (!t.IsCanceled) Dispatcher.UIThread.Post(SaveAndRebuild);
+        }, TaskScheduler.Default);
+    }
 
     private void SaveAndRebuild()
     {
@@ -96,6 +314,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _settings.DemuxerMaxBytes = DemuxerMaxBytes;
         _settings.DemuxerMaxBackBytes = DemuxerMaxBackBytes;
         _settings.HwDec = HwDec;
+        _settings.Volume = Volume;
         MpvOptionsPreview = _settings.BuildMpvOptions();
         SettingsService.Save(_settings);
     }
@@ -110,7 +329,375 @@ public partial class MainWindowViewModel : ViewModelBase
         DemuxerMaxBytes = d.DemuxerMaxBytes;
         DemuxerMaxBackBytes = d.DemuxerMaxBackBytes;
         HwDec = d.HwDec;
+        Volume = d.Volume;
+        AutoMute = d.AutoMute;
+        AutoMuteDelayMs = d.AutoMuteDelayMs;
+        AutoUnmuteDelayMs = d.AutoUnmuteDelayMs;
+        AutoMuteThresholdDb = (decimal)d.AutoMuteThresholdDb;
     }
+
+    // ── Playlist ──────────────────────────────────────────────────────────
+
+    [RelayCommand]
+    private void ToggleInPlaylist(WallpaperCardViewModel card)
+    {
+        var selected = LibraryWallpapers.Where(c => c.IsSelected).ToList();
+        if (selected.Count > 0 && selected.Contains(card))
+        {
+            if (card.IsInPlaylist)
+            {
+                foreach (var c in selected.Where(c => c.IsInPlaylist))
+                {
+                    PlaylistItems.Remove(c);
+                    c.IsInPlaylist = false;
+                }
+            }
+            else
+            {
+                foreach (var c in selected.Where(c => c.LibraryItem != null && !c.IsInPlaylist))
+                {
+                    PlaylistItems.Add(c);
+                    c.IsInPlaylist = true;
+                }
+            }
+            foreach (var c in LibraryWallpapers) c.IsSelected = false;
+            _lastSelectedIndex = -1;
+        }
+        else
+        {
+            if (card.LibraryItem == null) return;
+            if (card.IsInPlaylist)
+            {
+                PlaylistItems.Remove(card);
+                card.IsInPlaylist = false;
+            }
+            else
+            {
+                PlaylistItems.Add(card);
+                card.IsInPlaylist = true;
+            }
+        }
+    }
+
+    [RelayCommand]
+    private void RemoveFromPlaylist(WallpaperCardViewModel card)
+    {
+        var selected = LibraryWallpapers.Where(c => c.IsSelected && c.IsInPlaylist).ToList();
+        if (selected.Count > 0 && card.IsSelected && card.IsInPlaylist)
+        {
+            foreach (var c in selected)
+            {
+                PlaylistItems.Remove(c);
+                c.IsInPlaylist = false;
+            }
+            foreach (var c in LibraryWallpapers) c.IsSelected = false;
+            _lastSelectedIndex = -1;
+        }
+        else
+        {
+            PlaylistItems.Remove(card);
+            card.IsInPlaylist = false;
+        }
+    }
+
+    [RelayCommand]
+    private void PlayCustomPlaylist()
+    {
+        if (PlaylistItems.Count == 0)
+        {
+            StatusMessage = "Playlist is empty";
+            return;
+        }
+        var paths = PlaylistItems
+            .Where(c => c.LibraryItem != null)
+            .Select(c => c.LibraryItem!.VideoPath)
+            .ToList();
+        if (paths.Count == 0) return;
+
+        int intervalSecs = GetIntervalSeconds();
+        if (intervalSecs == 0 && paths.Count > 1)
+        {
+            StatusMessage = "Set an interval greater than 0 to use timed playlists";
+            return;
+        }
+        var playPaths = PlaylistShuffle ? paths.OrderBy(_ => Guid.NewGuid()).ToList() : paths;
+        PlayerHelper.ApplyTimedPlaylist(playPaths, _settings.BuildMpvOptions(), PlaylistShuffle, intervalSecs);
+        _settings.LastSession = new LastSession
+        {
+            IsTimedPlaylist = true,
+            Paths = paths,
+            Shuffle = PlaylistShuffle,
+            TimedIntervalSeconds = intervalSecs
+        };
+        SettingsService.Save(_settings);
+        StatusMessage = $"Playing playlist ({paths.Count} wallpapers, switching every {GetIntervalDisplay()})";
+    }
+
+    [RelayCommand]
+    private void PlayFromCard(WallpaperCardViewModel card)
+    {
+        var allPaths = PlaylistItems
+            .Where(c => c.LibraryItem != null)
+            .Select(c => c.LibraryItem!.VideoPath)
+            .ToList();
+        if (allPaths.Count == 0) return;
+
+        int intervalSecs = GetIntervalSeconds();
+        if (intervalSecs == 0 && allPaths.Count > 1)
+        {
+            StatusMessage = "Set an interval greater than 0 to use timed playlists";
+            return;
+        }
+
+        // Clicked card always goes first; rest is shuffled or in playlist order
+        int startIdx = PlaylistItems.IndexOf(card);
+        var rest = allPaths.Where((_, i) => i != startIdx).ToList();
+        if (PlaylistShuffle) rest = rest.OrderBy(_ => Guid.NewGuid()).ToList();
+        var paths = new List<string> { allPaths[startIdx] }.Concat(rest).ToList();
+
+        PlayerHelper.ApplyTimedPlaylist(paths, _settings.BuildMpvOptions(), PlaylistShuffle, intervalSecs);
+        _settings.LastSession = new LastSession
+        {
+            IsTimedPlaylist = true,
+            Paths = allPaths,
+            Shuffle = PlaylistShuffle,
+            TimedIntervalSeconds = intervalSecs
+        };
+        SettingsService.Save(_settings);
+        StatusMessage = $"Playing from: {card.Title}";
+    }
+
+    public void MovePlaylistItem(int from, int insertionIndex)
+    {
+        if (from < 0 || from >= PlaylistItems.Count) return;
+        if (insertionIndex < 0 || insertionIndex > PlaylistItems.Count) return;
+        int insertAt = insertionIndex > from ? insertionIndex - 1 : insertionIndex;
+        if (from == insertAt) return;
+        var item = PlaylistItems[from];
+        PlaylistItems.RemoveAt(from);
+        PlaylistItems.Insert(Math.Min(insertAt, PlaylistItems.Count), item);
+    }
+
+    private void SavePlaylistStateDebounced()
+    {
+        // Snapshot everything on the UI thread before any async delay
+        var paths = PlaylistItems
+            .Where(c => c.LibraryItem != null)
+            .Select(c => c.LibraryItem!.VideoPath)
+            .ToList();
+        var shuffle = PlaylistShuffle;
+        var secs = GetIntervalSeconds();
+
+        _playlistSaveCts?.Cancel();
+        _playlistSaveCts?.Dispose();
+        var cts = _playlistSaveCts = new CancellationTokenSource();
+        Task.Delay(200, cts.Token).ContinueWith(t =>
+        {
+            if (!t.IsCanceled) SavePlaylistState(paths, shuffle, secs);
+        }, TaskScheduler.Default);
+    }
+
+    private static void SavePlaylistState(List<string> paths, bool shuffle, int intervalSeconds)
+    {
+        try
+        {
+            var playlist = new CustomPlaylist
+            {
+                VideoPaths = paths,
+                Settings = new PlaylistSettings
+                {
+                    Order = shuffle ? PlaylistOrder.Shuffle : PlaylistOrder.Sequential,
+                    IntervalSeconds = intervalSeconds
+                }
+            };
+            var path = PlaylistStatePath;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, JsonSerializer.Serialize(playlist, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch { }
+    }
+
+    private void RestorePlaylistState()
+    {
+        var path = PlaylistStatePath;
+        if (!File.Exists(path)) return;
+        try
+        {
+            var playlist = JsonSerializer.Deserialize<CustomPlaylist>(File.ReadAllText(path));
+            if (playlist == null) return;
+            foreach (var videoPath in playlist.VideoPaths)
+            {
+                var libCard = LibraryWallpapers.FirstOrDefault(c => c.LibraryItem?.VideoPath == videoPath);
+                if (libCard != null) { PlaylistItems.Add(libCard); libCard.IsInPlaylist = true; }
+            }
+            PlaylistShuffle = playlist.Settings.Order == PlaylistOrder.Shuffle;
+            int secs = playlist.Settings.IntervalSeconds;
+            IntervalHours = secs / 3600;
+            IntervalMinutes = (secs % 3600) / 60;
+            IntervalSeconds = secs % 60;
+        }
+        catch { }
+    }
+
+    [RelayCommand]
+    private void TogglePlaylistSettings() => IsPlaylistSettingsOpen = !IsPlaylistSettingsOpen;
+
+    [RelayCommand]
+    private void ClosePlaylistSettings() => IsPlaylistSettingsOpen = false;
+
+    [RelayCommand]
+    private void SetSequential() => PlaylistShuffle = false;
+
+    [RelayCommand]
+    private void SetShuffle() => PlaylistShuffle = true;
+
+    [RelayCommand]
+    private async Task SavePlaylist()
+    {
+        if (OpenSaveDialog == null) return;
+        var path = await OpenSaveDialog();
+        if (path == null) return;
+
+        var playlist = new CustomPlaylist
+        {
+            VideoPaths = PlaylistItems
+                .Where(c => c.LibraryItem != null)
+                .Select(c => c.LibraryItem!.VideoPath)
+                .ToList(),
+            Settings = new PlaylistSettings
+            {
+                Order = PlaylistShuffle ? PlaylistOrder.Shuffle : PlaylistOrder.Sequential,
+                IntervalSeconds = GetIntervalSeconds()
+            }
+        };
+        var json = JsonSerializer.Serialize(playlist, new JsonSerializerOptions { WriteIndented = true });
+        await File.WriteAllTextAsync(path, json);
+        StatusMessage = "Playlist saved";
+    }
+
+    [RelayCommand]
+    private async Task LoadPlaylist()
+    {
+        if (OpenLoadDialog == null) return;
+        var path = await OpenLoadDialog();
+        if (path == null) return;
+
+        try
+        {
+            var json = await File.ReadAllTextAsync(path);
+            var playlist = JsonSerializer.Deserialize<CustomPlaylist>(json);
+            if (playlist == null) return;
+
+            foreach (var c in PlaylistItems) c.IsInPlaylist = false;
+            PlaylistItems.Clear();
+
+            foreach (var videoPath in playlist.VideoPaths)
+            {
+                var libCard = LibraryWallpapers.FirstOrDefault(c => c.LibraryItem?.VideoPath == videoPath);
+                if (libCard != null)
+                {
+                    PlaylistItems.Add(libCard);
+                    libCard.IsInPlaylist = true;
+                }
+            }
+
+            PlaylistShuffle = playlist.Settings.Order == PlaylistOrder.Shuffle;
+            int secs = playlist.Settings.IntervalSeconds;
+            IntervalHours = secs / 3600;
+            IntervalMinutes = (secs % 3600) / 60;
+            IntervalSeconds = (decimal)(secs % 60);
+
+            StatusMessage = $"Loaded playlist ({PlaylistItems.Count} wallpapers)";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to load playlist: {ex.Message}";
+        }
+    }
+
+    // ── Selection ─────────────────────────────────────────────────────────
+
+    [RelayCommand]
+    private void SelectAll()
+    {
+        foreach (var c in LibraryWallpapers) c.IsSelected = true;
+        _lastSelectedIndex = LibraryWallpapers.Count - 1;
+    }
+
+    [RelayCommand]
+    private void SelectAllBrowse()
+    {
+        foreach (var c in BrowseWallpapers) c.IsSelected = true;
+        _lastBrowseSelectedIndex = BrowseWallpapers.Count - 1;
+    }
+
+    public void SelectBrowseCard(WallpaperCardViewModel card, bool shiftHeld, bool ctrlHeld = false)
+    {
+        int idx = BrowseWallpapers.IndexOf(card);
+        if (idx < 0) return;
+
+        if (ctrlHeld)
+        {
+            card.IsSelected = !card.IsSelected;
+            if (card.IsSelected) _lastBrowseSelectedIndex = idx;
+        }
+        else if (shiftHeld && _lastBrowseSelectedIndex >= 0)
+        {
+            int from = Math.Min(_lastBrowseSelectedIndex, idx);
+            int to = Math.Max(_lastBrowseSelectedIndex, idx);
+            for (int i = from; i <= to; i++)
+                BrowseWallpapers[i].IsSelected = true;
+        }
+        else
+        {
+            bool wasOnlySelected = card.IsSelected && BrowseWallpapers.Count(c => c.IsSelected) == 1;
+            foreach (var c in BrowseWallpapers) c.IsSelected = false;
+            if (!wasOnlySelected)
+            {
+                card.IsSelected = true;
+                _lastBrowseSelectedIndex = idx;
+            }
+            else
+            {
+                _lastBrowseSelectedIndex = -1;
+            }
+        }
+    }
+
+    public void SelectCard(WallpaperCardViewModel card, bool shiftHeld, bool ctrlHeld = false)
+    {
+        int idx = LibraryWallpapers.IndexOf(card);
+        if (idx < 0) return;
+
+        if (ctrlHeld)
+        {
+            card.IsSelected = !card.IsSelected;
+            if (card.IsSelected) _lastSelectedIndex = idx;
+        }
+        else if (shiftHeld && _lastSelectedIndex >= 0)
+        {
+            int from = Math.Min(_lastSelectedIndex, idx);
+            int to = Math.Max(_lastSelectedIndex, idx);
+            for (int i = from; i <= to; i++)
+                LibraryWallpapers[i].IsSelected = true;
+        }
+        else
+        {
+            bool wasOnlySelected = card.IsSelected && LibraryWallpapers.Count(c => c.IsSelected) == 1;
+            foreach (var c in LibraryWallpapers) c.IsSelected = false;
+            if (!wasOnlySelected)
+            {
+                card.IsSelected = true;
+                _lastSelectedIndex = idx;
+            }
+            else
+            {
+                _lastSelectedIndex = -1;
+            }
+        }
+    }
+
+    // ── Browse ────────────────────────────────────────────────────────────
 
     partial void OnSelectedSourceChanged(IBgsProvider value)
     {
@@ -135,6 +722,7 @@ public partial class MainWindowViewModel : ViewModelBase
         IsLoading = true;
         StatusMessage = "";
         BrowseWallpapers.Clear();
+        _lastBrowseSelectedIndex = -1;
 
         try
         {
@@ -168,6 +756,7 @@ public partial class MainWindowViewModel : ViewModelBase
         IsLoading = true;
         StatusMessage = "";
         BrowseWallpapers.Clear();
+        _lastBrowseSelectedIndex = -1;
 
         try
         {
@@ -209,10 +798,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 BrowseWallpapers.Add(new WallpaperCardViewModel(r));
                 added++;
             }
-            if (added == 0)
-            {
-                NoMorePages = true;
-            }
+            if (added == 0) NoMorePages = true;
         }
         catch (Exception ex)
         {
@@ -229,64 +815,102 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task DownloadAsync(WallpaperCardViewModel card)
     {
         PreviewCard = null;
-        var existing = LibraryWallpapers.FirstOrDefault(c =>
-            c.LibraryItem?.SourceId != null && c.LibraryItem.SourceId == card.PageUrl);
-        if (existing != null)
-        {
-            ApplyAndSave(existing.PageUrl);
-            StatusMessage = $"Applied: {card.Title}";
-            return;
-        }
+
+        var selected = BrowseWallpapers.Where(c => c.IsSelected).ToList();
+        var toDownload = selected.Count > 1 && selected.Contains(card) ? selected : [card];
 
         IsDownloading = true;
         DownloadProgress = 0;
-        DownloadTitle = card.Title;
-        try
+        bool applied = false;
+        int completed = 0;
+        int succeeded = 0;
+
+        foreach (var target in toDownload)
         {
-            var detail = await SelectedSource.GetDetailAsync(new WallpaperResult
+            DownloadTitle = toDownload.Count > 1
+                ? $"{target.Title} ({completed + 1}/{toDownload.Count})"
+                : target.Title;
+
+            var existing = LibraryWallpapers.FirstOrDefault(c =>
+                c.LibraryItem?.SourceId != null && c.LibraryItem.SourceId == target.PageUrl);
+            if (existing != null)
             {
-                Title = card.Title,
-                ThumbnailUrl = card.ThumbnailSource,
-                PageUrl = card.PageUrl
-            });
+                if (target == card && !applied) { ApplyAndSave(existing.PageUrl); applied = true; }
+                StatusMessage = $"Applied: {target.Title}";
+                completed++;
+                succeeded++;
+                continue;
+            }
 
-            var progressReporter = new Progress<double>(p => DownloadProgress = p);
-            var item = await DownloadHelper.DownloadAsync(detail, card.ThumbnailSource, card.PageUrl, progressReporter);
-            var libCard = new WallpaperCardViewModel(item);
-            LibraryWallpapers.Add(libCard);
+            try
+            {
+                var detail = await SelectedSource.GetDetailAsync(new WallpaperResult
+                {
+                    Title = target.Title,
+                    ThumbnailUrl = target.ThumbnailSource,
+                    PageUrl = target.PageUrl
+                });
+                var progressReporter = new Progress<double>(p => DownloadProgress = p);
+                var item = await DownloadHelper.DownloadAsync(detail, target.ThumbnailSource, target.PageUrl, progressReporter, WeCopyFiles);
+                var libCard = MakeLibraryCard(item);
+                LibraryWallpapers.Add(libCard);
 
-            ApplyAndSave(item.VideoPath);
-            StatusMessage = $"Applied: {card.Title}";
+                if (target == card && !applied) { ApplyAndSave(item.VideoPath); applied = true; }
+                StatusMessage = $"Applied: {target.Title}";
+                succeeded++;
+            }
+            catch (Exception ex)
+            {
+                bool isRateLimit = ex.Message.Contains("daily download limit");
+                ErrorTitle = isRateLimit ? "Wallsflow Download Limit" : "Download Failed";
+                ErrorMessage = isRateLimit
+                    ? "Wallsflow limits unregistered users to 5 downloads per day. Log in to your Wallsflow account in Settings to continue downloading."
+                    : ex.Message;
+                StatusMessage = $"Download failed: {target.Title}: {ex.Message}";
+            }
+            completed++;
         }
-        catch (Exception ex)
+
+        IsDownloading = false;
+
+        if (toDownload.Count > 1)
         {
-            bool isRateLimit = ex.Message.Contains("daily download limit");
-            ErrorTitle = isRateLimit ? "Wallsflow Download Limit" : "Download Failed";
-            ErrorMessage = isRateLimit
-                ? "Wallsflow limits unregistered users to 5 downloads per day. Log in to your Wallsflow account in Settings to continue downloading."
-                : ex.Message;
-            StatusMessage = $"Download failed: {ex.Message}";
-        }
-        finally
-        {
-            IsDownloading = false;
+            StatusMessage = $"Downloaded {succeeded}/{toDownload.Count} wallpapers";
+            foreach (var c in BrowseWallpapers) c.IsSelected = false;
+            _lastBrowseSelectedIndex = -1;
         }
     }
 
     [RelayCommand]
     private void Delete(WallpaperCardViewModel card)
     {
-        if (card.LibraryItem == null) return;
-        try
+        var selected = LibraryWallpapers.Where(c => c.IsSelected).ToList();
+        var toDelete = selected.Count > 0 && selected.Contains(card) ? selected : [card];
+
+        int deleted = 0;
+        foreach (var target in toDelete)
         {
-            LibraryService.Delete(card.LibraryItem);
-            LibraryWallpapers.Remove(card);
-            StatusMessage = $"Deleted: {card.Title}";
+            if (target.LibraryItem == null) continue;
+            try
+            {
+                LibraryService.Delete(target.LibraryItem);
+                LibraryWallpapers.Remove(target);
+                if (target.IsInPlaylist)
+                {
+                    PlaylistItems.Remove(target);
+                    target.IsInPlaylist = false;
+                }
+                deleted++;
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Delete failed: {target.Title}: {ex.Message}";
+            }
         }
-        catch (Exception ex)
-        {
-            StatusMessage = $"Delete failed: {ex.Message}";
-        }
+
+        if (deleted > 0)
+            StatusMessage = deleted > 1 ? $"Deleted {deleted} wallpapers" : $"Deleted: {toDelete[0].Title}";
+        _lastSelectedIndex = -1;
     }
 
     [ObservableProperty] private bool _shuffleLibrary;
@@ -301,7 +925,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 .Select(c => c.LibraryItem!.VideoPath)
                 .ToList();
             PlayerHelper.ApplyPlaylist(paths, _settings.BuildMpvPlaylistOptions(), ShuffleLibrary);
-            _settings.LastSession = new Models.LastSession { IsPlaylist = true, Paths = paths, Shuffle = ShuffleLibrary };
+            _settings.LastSession = new LastSession { IsPlaylist = true, Paths = paths, Shuffle = ShuffleLibrary };
             SettingsService.Save(_settings);
             StatusMessage = $"Playing {paths.Count} wallpapers in loop{(ShuffleLibrary ? " (shuffled)" : "")}";
         }
@@ -328,13 +952,34 @@ public partial class MainWindowViewModel : ViewModelBase
     private void ApplyAndSave(string videoPath)
     {
         PlayerHelper.Apply(videoPath, _settings.BuildMpvOptions());
-        _settings.LastSession = new Models.LastSession { Paths = [videoPath] };
+        _settings.LastSession = new LastSession { Paths = [videoPath] };
         SettingsService.Save(_settings);
     }
 
     private void LoadLibrary()
     {
         foreach (var item in LibraryService.LoadAll())
-            LibraryWallpapers.Add(new WallpaperCardViewModel(item));
+            LibraryWallpapers.Add(MakeLibraryCard(item));
+    }
+
+    private WallpaperCardViewModel MakeLibraryCard(LibraryItem item)
+    {
+        var card = new WallpaperCardViewModel(item);
+        card.OnTogglePlaylist = c => ToggleInPlaylistCommand.Execute(c);
+        return card;
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    private int GetIntervalSeconds() =>
+        (int)IntervalHours * 3600 + (int)IntervalMinutes * 60 + (int)IntervalSeconds;
+
+    private string GetIntervalDisplay()
+    {
+        var parts = new List<string>();
+        if (IntervalHours > 0) parts.Add($"{(int)IntervalHours}h");
+        if (IntervalMinutes > 0) parts.Add($"{(int)IntervalMinutes}m");
+        if (IntervalSeconds > 0 || parts.Count == 0) parts.Add($"{(int)IntervalSeconds}s");
+        return string.Join(" ", parts);
     }
 }

@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using livepaper.Helpers;
 using livepaper.ViewModels;
 using livepaper.Views;
 
@@ -17,10 +18,26 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow
+            // Take over from any detached daemons
+            AudioMonitor.KillDetachedMonitor();
+            PlayerHelper.KillTimerDaemon();
+
+            var window = new MainWindow
             {
                 DataContext = new MainWindowViewModel(),
             };
+
+            window.Closed += (_, _) =>
+            {
+                var settings = SettingsService.Load();
+                if (settings.AutoMute)
+                    AudioMonitor.SpawnDetachedMonitor();
+                AudioMonitor.Stop();
+                if (settings.LastSession?.IsTimedPlaylist == true && PlayerHelper.IsPlaying)
+                    PlayerHelper.SpawnTimerDaemon();
+            };
+
+            desktop.MainWindow = window;
         }
 
         base.OnFrameworkInitializationCompleted();
