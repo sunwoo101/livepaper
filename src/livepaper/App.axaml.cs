@@ -21,6 +21,7 @@ public partial class App : Application
             // Take over from any detached daemons
             AudioMonitor.KillDetachedMonitor();
             PlayerHelper.KillTimerDaemon();
+            PlayerHelper.WriteGuiTimerPid();
 
             var window = new MainWindow
             {
@@ -33,6 +34,8 @@ public partial class App : Application
                 if (settings.AutoMute)
                     AudioMonitor.SpawnDetachedMonitor();
                 AudioMonitor.Stop();
+                // Must clear before SpawnTimerDaemon so the GUI-alive guard passes.
+                PlayerHelper.ClearGuiTimerPid();
                 if (settings.LastSession?.IsTimedPlaylist == true && PlayerHelper.IsPlaying)
                     PlayerHelper.SpawnTimerDaemon();
             };

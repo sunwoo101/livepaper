@@ -46,6 +46,24 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private int _clearLibraryCountdown;
     [ObservableProperty] private bool _clearLibraryReady;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AnyBrowseSelected))]
+    private int _browseSelectedCount;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AnyLibrarySelected))]
+    private int _librarySelectedCount;
+
+    public bool AnyBrowseSelected => BrowseSelectedCount > 0;
+    public bool AnyLibrarySelected => LibrarySelectedCount > 0;
+
+    [ObservableProperty] private bool _isSavePlaylistOpen;
+    [ObservableProperty] private string _savePlaylistName = "";
+    [ObservableProperty] private bool _isLoadPlaylistOpen;
+    [ObservableProperty] private ObservableCollection<string> _availablePlaylists = [];
+    [ObservableProperty] private string? _selectedPlaylistToLoad;
+    [ObservableProperty] private string? _currentPlaylistName;
+
     private CancellationTokenSource? _clearLibraryCts;
 
     partial void OnDownloadProgressChanged(double value) =>
@@ -138,6 +156,14 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private decimal _intervalHours = 0;
     [ObservableProperty] private decimal _intervalMinutes = 30;
     [ObservableProperty] private decimal _intervalSeconds = 0;
+    [ObservableProperty] private bool _advanceOnVideoEnd;
+    [ObservableProperty] private bool _overrideGlobalSettings;
+
+    // Global rotation settings (Settings tab)
+    [ObservableProperty] private decimal _globalIntervalHours;
+    [ObservableProperty] private decimal _globalIntervalMinutes;
+    [ObservableProperty] private decimal _globalIntervalSeconds;
+    [ObservableProperty] private bool _globalAdvanceOnVideoEnd;
 
     partial void OnAutoMuteChanged(bool value)
     {
@@ -197,22 +223,52 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     partial void OnPlaylistShuffleChanged(bool value) { SavePlaylistStateDebounced(); ApplyTimedSettingsIfRunning(); }
-    partial void OnIntervalHoursChanged(decimal value) { SavePlaylistStateDebounced(); ApplyTimedSettingsIfRunning(); }
-    partial void OnIntervalMinutesChanged(decimal value) { SavePlaylistStateDebounced(); ApplyTimedSettingsIfRunning(); }
-    partial void OnIntervalSecondsChanged(decimal value) { SavePlaylistStateDebounced(); ApplyTimedSettingsIfRunning(); }
+    partial void OnIntervalHoursChanged(decimal value) { SavePlaylistStateDebounced(); if (OverrideGlobalSettings) ApplyTimedSettingsIfRunning(); }
+    partial void OnIntervalMinutesChanged(decimal value) { SavePlaylistStateDebounced(); if (OverrideGlobalSettings) ApplyTimedSettingsIfRunning(); }
+    partial void OnIntervalSecondsChanged(decimal value) { SavePlaylistStateDebounced(); if (OverrideGlobalSettings) ApplyTimedSettingsIfRunning(); }
+    partial void OnAdvanceOnVideoEndChanged(bool value) => SavePlaylistStateDebounced();
+    partial void OnOverrideGlobalSettingsChanged(bool value) { SavePlaylistStateDebounced(); ApplyTimedSettingsIfRunning(); }
+    partial void OnGlobalIntervalHoursChanged(decimal value) { SaveGlobalRotationSettings(); if (!OverrideGlobalSettings) ApplyTimedSettingsIfRunning(); }
+    partial void OnGlobalIntervalMinutesChanged(decimal value) { SaveGlobalRotationSettings(); if (!OverrideGlobalSettings) ApplyTimedSettingsIfRunning(); }
+    partial void OnGlobalIntervalSecondsChanged(decimal value) { SaveGlobalRotationSettings(); if (!OverrideGlobalSettings) ApplyTimedSettingsIfRunning(); }
+    partial void OnGlobalAdvanceOnVideoEndChanged(bool value) => SaveGlobalRotationSettings();
+
+    private void SaveGlobalRotationSettings()
+    {
+        _settings.GlobalIntervalSeconds = (int)GlobalIntervalHours * 3600 + (int)GlobalIntervalMinutes * 60 + (int)GlobalIntervalSeconds;
+        _settings.GlobalAdvanceOnVideoEnd = GlobalAdvanceOnVideoEnd;
+        SettingsService.Save(_settings);
+    }
+
+    private void OnBrowseCardChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(WallpaperCardViewModel.IsSelected))
+            BrowseSelectedCount = BrowseWallpapers.Count(c => c.IsSelected);
+    }
+
+    private void OnLibraryCardChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(WallpaperCardViewModel.IsSelected))
+            LibrarySelectedCount = LibraryWallpapers.Count(c => c.IsSelected);
+    }
+
+    private int GetEffectiveIntervalSeconds() =>
+        OverrideGlobalSettings ? GetIntervalSeconds() : _settings.GlobalIntervalSeconds;
+
+    private bool GetEffectiveAdvanceOnVideoEnd() =>
+        OverrideGlobalSettings ? AdvanceOnVideoEnd : _settings.GlobalAdvanceOnVideoEnd;
+    partial void OnCurrentPlaylistNameChanged(string? value) => SavePlaylistStateDebounced();
 
     private void ApplyTimedSettingsIfRunning()
     {
         if (_settings.LastSession?.IsTimedPlaylist != true || !PlayerHelper.IsPlaying) return;
-        int secs = GetIntervalSeconds();
+        int secs = GetEffectiveIntervalSeconds();
         if (secs > 0) PlayerHelper.UpdateTimedSettings(PlaylistShuffle, secs);
     }
 
     private int _lastSelectedIndex = -1;
     private int _lastBrowseSelectedIndex = -1;
 
-    public Func<Task<string?>>? OpenSaveDialog { get; set; }
-    public Func<Task<string?>>? OpenLoadDialog { get; set; }
     public Func<Task<string?>>? PickFolderDialog { get; set; }
     public Func<string, Task>? CopyToClipboard { get; set; }
 
@@ -247,6 +303,11 @@ public partial class MainWindowViewModel : ViewModelBase
         _autoMuteDelayMs = _settings.AutoMuteDelayMs;
         _autoUnmuteDelayMs = _settings.AutoUnmuteDelayMs;
         _autoMuteThresholdDb = (decimal)_settings.AutoMuteThresholdDb;
+        var gSecs = _settings.GlobalIntervalSeconds;
+        _globalIntervalHours = gSecs / 3600;
+        _globalIntervalMinutes = (gSecs % 3600) / 60;
+        _globalIntervalSeconds = gSecs % 60;
+        _globalAdvanceOnVideoEnd = _settings.GlobalAdvanceOnVideoEnd;
         _wallpaperEnginePath = _settings.WallpaperEnginePath;
         _weCopyFiles = _settings.WeCopyFiles;
         _resumeFromLast = _settings.ResumeFromLast;
@@ -256,6 +317,23 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (_settings.AutoMute)
             AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb);
+
+        BrowseWallpapers.CollectionChanged += (_, e) =>
+        {
+            if (e.NewItems != null)
+                foreach (WallpaperCardViewModel c in e.NewItems) c.PropertyChanged += OnBrowseCardChanged;
+            if (e.OldItems != null)
+                foreach (WallpaperCardViewModel c in e.OldItems) c.PropertyChanged -= OnBrowseCardChanged;
+            BrowseSelectedCount = BrowseWallpapers.Count(c => c.IsSelected);
+        };
+        LibraryWallpapers.CollectionChanged += (_, e) =>
+        {
+            if (e.NewItems != null)
+                foreach (WallpaperCardViewModel c in e.NewItems) c.PropertyChanged += OnLibraryCardChanged;
+            if (e.OldItems != null)
+                foreach (WallpaperCardViewModel c in e.OldItems) c.PropertyChanged -= OnLibraryCardChanged;
+            LibrarySelectedCount = LibraryWallpapers.Count(c => c.IsSelected);
+        };
 
         PlaylistItems.CollectionChanged += (_, _) =>
         {
@@ -272,11 +350,8 @@ public partial class MainWindowViewModel : ViewModelBase
         var s = _settings.LastSession;
         if (s != null && PlayerHelper.IsPlaying)
         {
-            if (s.IsTimedPlaylist && PlaylistItems.Count > 0)
-            {
-                PlayerHelper.ResumeTimedTimer();
-                StatusMessage = $"Playing playlist ({PlaylistItems.Count} wallpapers, switching every {GetIntervalDisplay()})";
-            }
+            if (s.IsTimedPlaylist && PlayerHelper.ResumeTimedTimer())
+                StatusMessage = $"Playing playlist ({s.Paths.Count} wallpapers, switching every {FormatInterval(s.TimedIntervalSeconds)})";
             else if (s.IsPlaylist)
                 StatusMessage = $"Playing playlist ({s.Paths.Count} wallpapers)";
         }
@@ -341,63 +416,66 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void ToggleInPlaylist(WallpaperCardViewModel card)
     {
-        var selected = LibraryWallpapers.Where(c => c.IsSelected).ToList();
-        if (selected.Count > 0 && selected.Contains(card))
+        if (card.LibraryItem == null) return;
+        if (card.IsInPlaylist)
         {
-            if (card.IsInPlaylist)
-            {
-                foreach (var c in selected.Where(c => c.IsInPlaylist))
-                {
-                    PlaylistItems.Remove(c);
-                    c.IsInPlaylist = false;
-                }
-            }
-            else
-            {
-                foreach (var c in selected.Where(c => c.LibraryItem != null && !c.IsInPlaylist))
-                {
-                    PlaylistItems.Add(c);
-                    c.IsInPlaylist = true;
-                }
-            }
-            foreach (var c in LibraryWallpapers) c.IsSelected = false;
-            _lastSelectedIndex = -1;
+            PlaylistItems.Remove(card);
+            card.IsInPlaylist = false;
         }
         else
         {
-            if (card.LibraryItem == null) return;
-            if (card.IsInPlaylist)
-            {
-                PlaylistItems.Remove(card);
-                card.IsInPlaylist = false;
-            }
-            else
-            {
-                PlaylistItems.Add(card);
-                card.IsInPlaylist = true;
-            }
+            PlaylistItems.Add(card);
+            card.IsInPlaylist = true;
         }
     }
 
     [RelayCommand]
     private void RemoveFromPlaylist(WallpaperCardViewModel card)
     {
-        var selected = LibraryWallpapers.Where(c => c.IsSelected && c.IsInPlaylist).ToList();
-        if (selected.Count > 0 && card.IsSelected && card.IsInPlaylist)
+        PlaylistItems.Remove(card);
+        card.IsInPlaylist = false;
+    }
+
+    [RelayCommand]
+    private void AddSelectedToPlaylist()
+    {
+        var toAdd = LibraryWallpapers
+            .Where(c => c.IsSelected && c.LibraryItem != null && !c.IsInPlaylist)
+            .ToList();
+        foreach (var c in toAdd)
         {
-            foreach (var c in selected)
-            {
-                PlaylistItems.Remove(c);
-                c.IsInPlaylist = false;
-            }
-            foreach (var c in LibraryWallpapers) c.IsSelected = false;
-            _lastSelectedIndex = -1;
+            PlaylistItems.Add(c);
+            c.IsInPlaylist = true;
         }
-        else
+        ClearLibrarySelection();
+    }
+
+    [RelayCommand]
+    private void RemoveSelectedFromPlaylist()
+    {
+        var toRemove = LibraryWallpapers
+            .Where(c => c.IsSelected && c.IsInPlaylist)
+            .ToList();
+        foreach (var c in toRemove)
         {
-            PlaylistItems.Remove(card);
-            card.IsInPlaylist = false;
+            PlaylistItems.Remove(c);
+            c.IsInPlaylist = false;
         }
+        ClearLibrarySelection();
+    }
+
+    [RelayCommand]
+    private void ClearBrowseSelection()
+    {
+        foreach (var c in BrowseWallpapers) c.IsSelected = false;
+        _lastBrowseSelectedIndex = -1;
+    }
+
+    [RelayCommand]
+    private void ClearLibrarySelection()
+    {
+        foreach (var c in LibraryWallpapers) c.IsSelected = false;
+        _lastSelectedIndex = -1;
     }
 
     [RelayCommand]
@@ -414,7 +492,21 @@ public partial class MainWindowViewModel : ViewModelBase
             .ToList();
         if (paths.Count == 0) return;
 
-        int intervalSecs = GetIntervalSeconds();
+        if (GetEffectiveAdvanceOnVideoEnd())
+        {
+            PlayerHelper.ApplyPlaylist(paths, _settings.BuildMpvPlaylistOptions(), PlaylistShuffle);
+            _settings.LastSession = new LastSession
+            {
+                IsPlaylist = true,
+                Paths = paths,
+                Shuffle = PlaylistShuffle
+            };
+            SettingsService.Save(_settings);
+            StatusMessage = $"Playing playlist ({paths.Count} wallpapers, advancing on video end)";
+            return;
+        }
+
+        int intervalSecs = GetEffectiveIntervalSeconds();
         if (intervalSecs == 0 && paths.Count > 1)
         {
             StatusMessage = "Set an interval greater than 0 to use timed playlists";
@@ -430,7 +522,7 @@ public partial class MainWindowViewModel : ViewModelBase
             TimedIntervalSeconds = intervalSecs
         };
         SettingsService.Save(_settings);
-        StatusMessage = $"Playing playlist ({paths.Count} wallpapers, switching every {GetIntervalDisplay()})";
+        StatusMessage = $"Playing playlist ({paths.Count} wallpapers, switching every {GetEffectiveIntervalDisplay()})";
     }
 
     [RelayCommand]
@@ -442,18 +534,33 @@ public partial class MainWindowViewModel : ViewModelBase
             .ToList();
         if (allPaths.Count == 0) return;
 
-        int intervalSecs = GetIntervalSeconds();
-        if (intervalSecs == 0 && allPaths.Count > 1)
-        {
-            StatusMessage = "Set an interval greater than 0 to use timed playlists";
-            return;
-        }
-
         // Clicked card always goes first; rest is shuffled or in playlist order
         int startIdx = PlaylistItems.IndexOf(card);
         var rest = allPaths.Where((_, i) => i != startIdx).ToList();
         if (PlaylistShuffle) rest = rest.OrderBy(_ => Guid.NewGuid()).ToList();
         var paths = new List<string> { allPaths[startIdx] }.Concat(rest).ToList();
+
+        if (GetEffectiveAdvanceOnVideoEnd())
+        {
+            // Pre-arranged order; pass shuffle=false so mpv plays the clicked card first.
+            PlayerHelper.ApplyPlaylist(paths, _settings.BuildMpvPlaylistOptions(), shuffle: false);
+            _settings.LastSession = new LastSession
+            {
+                IsPlaylist = true,
+                Paths = allPaths,
+                Shuffle = PlaylistShuffle
+            };
+            SettingsService.Save(_settings);
+            StatusMessage = $"Playing from: {card.Title}";
+            return;
+        }
+
+        int intervalSecs = GetEffectiveIntervalSeconds();
+        if (intervalSecs == 0 && allPaths.Count > 1)
+        {
+            StatusMessage = "Set an interval greater than 0 to use timed playlists";
+            return;
+        }
 
         PlayerHelper.ApplyTimedPlaylist(paths, _settings.BuildMpvOptions(), PlaylistShuffle, intervalSecs);
         _settings.LastSession = new LastSession
@@ -487,17 +594,20 @@ public partial class MainWindowViewModel : ViewModelBase
             .ToList();
         var shuffle = PlaylistShuffle;
         var secs = GetIntervalSeconds();
+        var advance = AdvanceOnVideoEnd;
+        var overrideGlobal = OverrideGlobalSettings;
+        var name = CurrentPlaylistName;
 
         _playlistSaveCts?.Cancel();
         _playlistSaveCts?.Dispose();
         var cts = _playlistSaveCts = new CancellationTokenSource();
         Task.Delay(200, cts.Token).ContinueWith(t =>
         {
-            if (!t.IsCanceled) SavePlaylistState(paths, shuffle, secs);
+            if (!t.IsCanceled) SavePlaylistState(paths, shuffle, secs, advance, overrideGlobal, name);
         }, TaskScheduler.Default);
     }
 
-    private static void SavePlaylistState(List<string> paths, bool shuffle, int intervalSeconds)
+    private static void SavePlaylistState(List<string> paths, bool shuffle, int intervalSeconds, bool advanceOnVideoEnd, bool overrideGlobal, string? name)
     {
         try
         {
@@ -507,8 +617,11 @@ public partial class MainWindowViewModel : ViewModelBase
                 Settings = new PlaylistSettings
                 {
                     Order = shuffle ? PlaylistOrder.Shuffle : PlaylistOrder.Sequential,
-                    IntervalSeconds = intervalSeconds
-                }
+                    OverrideGlobalSettings = overrideGlobal,
+                    IntervalSeconds = intervalSeconds,
+                    AdvanceOnVideoEnd = advanceOnVideoEnd
+                },
+                Name = name
             };
             var path = PlaylistStatePath;
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -535,6 +648,9 @@ public partial class MainWindowViewModel : ViewModelBase
             IntervalHours = secs / 3600;
             IntervalMinutes = (secs % 3600) / 60;
             IntervalSeconds = secs % 60;
+            AdvanceOnVideoEnd = playlist.Settings.AdvanceOnVideoEnd;
+            OverrideGlobalSettings = playlist.Settings.OverrideGlobalSettings;
+            CurrentPlaylistName = playlist.Name;
         }
         catch { }
     }
@@ -552,11 +668,21 @@ public partial class MainWindowViewModel : ViewModelBase
     private void SetShuffle() => PlaylistShuffle = true;
 
     [RelayCommand]
-    private async Task SavePlaylist()
+    private void OpenSavePlaylist()
     {
-        if (OpenSaveDialog == null) return;
-        var path = await OpenSaveDialog();
-        if (path == null) return;
+        AvailablePlaylists = new ObservableCollection<string>(PlaylistService.ListNames());
+        SavePlaylistName = CurrentPlaylistName ?? "";
+        IsSavePlaylistOpen = true;
+    }
+
+    [RelayCommand]
+    private void CancelSavePlaylist() => IsSavePlaylistOpen = false;
+
+    [RelayCommand]
+    private void ConfirmSavePlaylist()
+    {
+        var name = SavePlaylistName?.Trim();
+        if (string.IsNullOrEmpty(name)) return;
 
         var playlist = new CustomPlaylist
         {
@@ -567,25 +693,44 @@ public partial class MainWindowViewModel : ViewModelBase
             Settings = new PlaylistSettings
             {
                 Order = PlaylistShuffle ? PlaylistOrder.Shuffle : PlaylistOrder.Sequential,
-                IntervalSeconds = GetIntervalSeconds()
+                OverrideGlobalSettings = OverrideGlobalSettings,
+                IntervalSeconds = GetIntervalSeconds(),
+                AdvanceOnVideoEnd = AdvanceOnVideoEnd
             }
         };
-        var json = JsonSerializer.Serialize(playlist, new JsonSerializerOptions { WriteIndented = true });
-        await File.WriteAllTextAsync(path, json);
-        StatusMessage = "Playlist saved";
+        try
+        {
+            PlaylistService.Save(name, playlist);
+            CurrentPlaylistName = name;
+            StatusMessage = $"Saved playlist \"{name}\"";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to save playlist: {ex.Message}";
+        }
+        IsSavePlaylistOpen = false;
     }
 
     [RelayCommand]
-    private async Task LoadPlaylist()
+    private void OpenLoadPlaylist()
     {
-        if (OpenLoadDialog == null) return;
-        var path = await OpenLoadDialog();
-        if (path == null) return;
+        AvailablePlaylists = new ObservableCollection<string>(PlaylistService.ListNames());
+        SelectedPlaylistToLoad = AvailablePlaylists.FirstOrDefault();
+        IsLoadPlaylistOpen = true;
+    }
+
+    [RelayCommand]
+    private void CancelLoadPlaylist() => IsLoadPlaylistOpen = false;
+
+    [RelayCommand]
+    private void ConfirmLoadPlaylist()
+    {
+        var name = SelectedPlaylistToLoad;
+        if (string.IsNullOrEmpty(name)) return;
 
         try
         {
-            var json = await File.ReadAllTextAsync(path);
-            var playlist = JsonSerializer.Deserialize<CustomPlaylist>(json);
+            var playlist = PlaylistService.Load(name);
             if (playlist == null) return;
 
             foreach (var c in PlaylistItems) c.IsInPlaylist = false;
@@ -606,13 +751,17 @@ public partial class MainWindowViewModel : ViewModelBase
             IntervalHours = secs / 3600;
             IntervalMinutes = (secs % 3600) / 60;
             IntervalSeconds = (decimal)(secs % 60);
+            AdvanceOnVideoEnd = playlist.Settings.AdvanceOnVideoEnd;
+            OverrideGlobalSettings = playlist.Settings.OverrideGlobalSettings;
 
-            StatusMessage = $"Loaded playlist ({PlaylistItems.Count} wallpapers)";
+            CurrentPlaylistName = name;
+            StatusMessage = $"Loaded playlist \"{name}\" ({PlaylistItems.Count} wallpapers)";
         }
         catch (Exception ex)
         {
             StatusMessage = $"Failed to load playlist: {ex.Message}";
         }
+        IsLoadPlaylistOpen = false;
     }
 
     // ── Selection ─────────────────────────────────────────────────────────
@@ -812,12 +961,22 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task DownloadAsync(WallpaperCardViewModel card)
-    {
-        PreviewCard = null;
+    private Task DownloadAsync(WallpaperCardViewModel card) =>
+        DownloadCardsAsync([card], applyTarget: card);
 
+    [RelayCommand]
+    private async Task DownloadSelectedAsync()
+    {
         var selected = BrowseWallpapers.Where(c => c.IsSelected).ToList();
-        var toDownload = selected.Count > 1 && selected.Contains(card) ? selected : [card];
+        if (selected.Count == 0) return;
+        await DownloadCardsAsync(selected, applyTarget: null);
+        ClearBrowseSelection();
+    }
+
+    private async Task DownloadCardsAsync(IReadOnlyList<WallpaperCardViewModel> targets, WallpaperCardViewModel? applyTarget)
+    {
+        if (targets.Count == 0) return;
+        PreviewCard = null;
 
         IsDownloading = true;
         DownloadProgress = 0;
@@ -825,17 +984,17 @@ public partial class MainWindowViewModel : ViewModelBase
         int completed = 0;
         int succeeded = 0;
 
-        foreach (var target in toDownload)
+        foreach (var target in targets)
         {
-            DownloadTitle = toDownload.Count > 1
-                ? $"{target.Title} ({completed + 1}/{toDownload.Count})"
+            DownloadTitle = targets.Count > 1
+                ? $"{target.Title} ({completed + 1}/{targets.Count})"
                 : target.Title;
 
             var existing = LibraryWallpapers.FirstOrDefault(c =>
                 c.LibraryItem?.SourceId != null && c.LibraryItem.SourceId == target.PageUrl);
             if (existing != null)
             {
-                if (target == card && !applied) { ApplyAndSave(existing.PageUrl); applied = true; }
+                if (target == applyTarget && !applied) { ApplyAndSave(existing.PageUrl); applied = true; }
                 StatusMessage = $"Applied: {target.Title}";
                 completed++;
                 succeeded++;
@@ -855,7 +1014,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 var libCard = MakeLibraryCard(item);
                 LibraryWallpapers.Add(libCard);
 
-                if (target == card && !applied) { ApplyAndSave(item.VideoPath); applied = true; }
+                if (target == applyTarget && !applied) { ApplyAndSave(item.VideoPath); applied = true; }
                 StatusMessage = $"Applied: {target.Title}";
                 succeeded++;
             }
@@ -873,22 +1032,26 @@ public partial class MainWindowViewModel : ViewModelBase
 
         IsDownloading = false;
 
-        if (toDownload.Count > 1)
-        {
-            StatusMessage = $"Downloaded {succeeded}/{toDownload.Count} wallpapers";
-            foreach (var c in BrowseWallpapers) c.IsSelected = false;
-            _lastBrowseSelectedIndex = -1;
-        }
+        if (targets.Count > 1)
+            StatusMessage = $"Downloaded {succeeded}/{targets.Count} wallpapers";
     }
 
     [RelayCommand]
-    private void Delete(WallpaperCardViewModel card)
+    private void Delete(WallpaperCardViewModel card) => DeleteCards([card]);
+
+    [RelayCommand]
+    private void DeleteSelected()
     {
         var selected = LibraryWallpapers.Where(c => c.IsSelected).ToList();
-        var toDelete = selected.Count > 0 && selected.Contains(card) ? selected : [card];
+        if (selected.Count == 0) return;
+        DeleteCards(selected);
+        ClearLibrarySelection();
+    }
 
+    private void DeleteCards(IReadOnlyList<WallpaperCardViewModel> targets)
+    {
         int deleted = 0;
-        foreach (var target in toDelete)
+        foreach (var target in targets)
         {
             if (target.LibraryItem == null) continue;
             try
@@ -909,8 +1072,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         if (deleted > 0)
-            StatusMessage = deleted > 1 ? $"Deleted {deleted} wallpapers" : $"Deleted: {toDelete[0].Title}";
-        _lastSelectedIndex = -1;
+            StatusMessage = deleted > 1 ? $"Deleted {deleted} wallpapers" : $"Deleted: {targets[0].Title}";
     }
 
     [ObservableProperty] private bool _shuffleLibrary;
@@ -924,10 +1086,34 @@ public partial class MainWindowViewModel : ViewModelBase
                 .Where(c => c.LibraryItem != null)
                 .Select(c => c.LibraryItem!.VideoPath)
                 .ToList();
-            PlayerHelper.ApplyPlaylist(paths, _settings.BuildMpvPlaylistOptions(), ShuffleLibrary);
-            _settings.LastSession = new LastSession { IsPlaylist = true, Paths = paths, Shuffle = ShuffleLibrary };
+            if (paths.Count == 0) return;
+
+            if (_settings.GlobalAdvanceOnVideoEnd)
+            {
+                PlayerHelper.ApplyPlaylist(paths, _settings.BuildMpvPlaylistOptions(), ShuffleLibrary);
+                _settings.LastSession = new LastSession { IsPlaylist = true, Paths = paths, Shuffle = ShuffleLibrary };
+                SettingsService.Save(_settings);
+                StatusMessage = $"Playing {paths.Count} wallpapers, advancing on video end{(ShuffleLibrary ? " (shuffled)" : "")}";
+                return;
+            }
+
+            int intervalSecs = _settings.GlobalIntervalSeconds;
+            if (intervalSecs == 0 && paths.Count > 1)
+            {
+                StatusMessage = "Set an interval greater than 0 in Settings to use timed playback";
+                return;
+            }
+            var playPaths = ShuffleLibrary ? paths.OrderBy(_ => Guid.NewGuid()).ToList() : paths;
+            PlayerHelper.ApplyTimedPlaylist(playPaths, _settings.BuildMpvOptions(), ShuffleLibrary, intervalSecs);
+            _settings.LastSession = new LastSession
+            {
+                IsTimedPlaylist = true,
+                Paths = paths,
+                Shuffle = ShuffleLibrary,
+                TimedIntervalSeconds = intervalSecs
+            };
             SettingsService.Save(_settings);
-            StatusMessage = $"Playing {paths.Count} wallpapers in loop{(ShuffleLibrary ? " (shuffled)" : "")}";
+            StatusMessage = $"Playing {paths.Count} wallpapers, switching every {FormatInterval(intervalSecs)}{(ShuffleLibrary ? " (shuffled)" : "")}";
         }
         catch (Exception ex)
         {
@@ -974,12 +1160,17 @@ public partial class MainWindowViewModel : ViewModelBase
     private int GetIntervalSeconds() =>
         (int)IntervalHours * 3600 + (int)IntervalMinutes * 60 + (int)IntervalSeconds;
 
-    private string GetIntervalDisplay()
+    private string GetEffectiveIntervalDisplay() => FormatInterval(GetEffectiveIntervalSeconds());
+
+    private static string FormatInterval(int totalSeconds)
     {
         var parts = new List<string>();
-        if (IntervalHours > 0) parts.Add($"{(int)IntervalHours}h");
-        if (IntervalMinutes > 0) parts.Add($"{(int)IntervalMinutes}m");
-        if (IntervalSeconds > 0 || parts.Count == 0) parts.Add($"{(int)IntervalSeconds}s");
+        int h = totalSeconds / 3600;
+        int m = (totalSeconds % 3600) / 60;
+        int s = totalSeconds % 60;
+        if (h > 0) parts.Add($"{h}h");
+        if (m > 0) parts.Add($"{m}m");
+        if (s > 0 || parts.Count == 0) parts.Add($"{s}s");
         return string.Join(" ", parts);
     }
 }

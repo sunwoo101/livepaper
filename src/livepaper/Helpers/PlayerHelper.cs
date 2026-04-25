@@ -7,6 +7,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
+using livepaper.Models;
 
 namespace livepaper.Helpers;
 
@@ -24,11 +25,26 @@ public static class PlayerHelper
     private static bool _timedTimerPaused;
     private static bool _timedTimerStopped;
     private static long _timedRemainingMs;
+    private static DateTime _lastTickTime;
+    private static readonly TimeSpan TickInterval = TimeSpan.FromMilliseconds(100);
     private static readonly object _lock = new();
     private static CancellationTokenSource? _daemonCts;
     public static CancellationToken DaemonToken => _daemonCts?.Token ?? CancellationToken.None;
 
     public static bool IsPlaying => File.Exists(IpcSocket) && Process.GetProcessesByName("mpvpaper").Length > 0;
+
+    // Stale-tolerant check that survives the brief gap during a timed-playlist
+    // switch where mpvpaper has been killed but the next instance hasn't launched.
+    public static bool IsTimedPlaylistActive()
+    {
+        try
+        {
+            if (!File.Exists(TimedStatePath)) return false;
+            var state = JsonSerializer.Deserialize<TimedState>(File.ReadAllText(TimedStatePath));
+            return state != null && state.Paths.Count > 0 && !state.TimerStopped;
+        }
+        catch { return false; }
+    }
 
     private static string IpcSocket => Path.Combine(
         Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") ?? Path.GetTempPath(),
@@ -41,6 +57,14 @@ public static class PlayerHelper
     private static string TimerDaemonPidPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
         ".config", "livepaper", "timer.pid");
+
+    private static string GuiTimerPidPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".config", "livepaper", "gui_timer.pid");
+
+    private static string PendingActionPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".config", "livepaper", "pending_action.txt");
 
     public static void KillTimerDaemon()
     {
@@ -57,8 +81,41 @@ public static class PlayerHelper
         catch { }
     }
 
+    public static void WriteGuiTimerPid()
+    {
+        try
+        {
+            var path = GuiTimerPidPath;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, Environment.ProcessId.ToString());
+        }
+        catch { }
+    }
+
+    public static void ClearGuiTimerPid()
+    {
+        try { File.Delete(GuiTimerPidPath); } catch { }
+    }
+
+    private static bool IsGuiTimerAlive()
+    {
+        try
+        {
+            if (!File.Exists(GuiTimerPidPath)) return false;
+            var pidText = File.ReadAllText(GuiTimerPidPath).Trim();
+            if (!int.TryParse(pidText, out int pid)) return false;
+            using var _ = System.Diagnostics.Process.GetProcessById(pid);
+            return true;
+        }
+        catch { return false; }
+    }
+
     public static void SpawnTimerDaemon()
     {
+        // Defensive guard: if a GUI is alive it owns the in-process timer.
+        // Spawning a daemon would create two competing owners of mpvpaper.
+        if (IsGuiTimerAlive()) return;
+
         FlushTimedState(); // persist current remaining time before handing off
         KillTimerDaemon();
         try
@@ -72,7 +129,7 @@ public static class PlayerHelper
                 RedirectStandardError = true,
             };
             psi.ArgumentList.Add(exe);
-            psi.ArgumentList.Add("--restore");
+            psi.ArgumentList.Add("--timer-daemon");
             var proc = System.Diagnostics.Process.Start(psi);
             if (proc != null)
             {
@@ -127,6 +184,50 @@ public static class PlayerHelper
             File.WriteAllText(path, JsonSerializer.Serialize(state));
         }
         catch { }
+    }
+
+    // Lighter than LoadTimedState: only syncs flags that external mutators
+    // can set (TimerStopped/TimerPaused). The owner's _timedRemainingMs and
+    // history stay authoritative in-memory, so we don't need to save state
+    // every tick.
+    private static void RefreshSignals()
+    {
+        try
+        {
+            if (!File.Exists(TimedStatePath)) return;
+            var state = JsonSerializer.Deserialize<TimedState>(File.ReadAllText(TimedStatePath));
+            if (state == null) return;
+            _timedTimerStopped = state.TimerStopped;
+            _timedTimerPaused = state.TimerPaused;
+        }
+        catch { }
+    }
+
+    // Atomic write: a separate file means the timer owner's state file is
+    // never clobbered by external mutators.
+    private static void WritePendingAction(string action)
+    {
+        try
+        {
+            var path = PendingActionPath;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var tmp = path + ".tmp";
+            File.WriteAllText(tmp, action);
+            File.Move(tmp, path, overwrite: true);
+        }
+        catch { }
+    }
+
+    private static string? ConsumePendingAction()
+    {
+        try
+        {
+            if (!File.Exists(PendingActionPath)) return null;
+            var action = File.ReadAllText(PendingActionPath).Trim();
+            File.Delete(PendingActionPath);
+            return string.IsNullOrEmpty(action) ? null : action;
+        }
+        catch { return null; }
     }
 
     private static bool LoadTimedState()
@@ -260,85 +361,141 @@ public static class PlayerHelper
     {
         _daemonCts?.Dispose();
         _daemonCts = new CancellationTokenSource();
+        _lastTickTime = DateTime.UtcNow;
+        ConsumePendingAction(); // discard any stale pending action from a prior session
 
-        _playlistTimer = new Timer(_ =>
+        _playlistTimer = new Timer(_ => Tick(), null, TickInterval, Timeout.InfiniteTimeSpan);
+    }
+
+    private static void Tick()
+    {
+        lock (_lock)
         {
-            lock (_lock)
+            var now = DateTime.UtcNow;
+            var elapsedMs = (long)(now - _lastTickTime).TotalMilliseconds;
+            _lastTickTime = now;
+
+            RefreshSignals();
+            if (_timedPaths == null) return;
+
+            if (_timedTimerStopped)
             {
-                // Sync with any external state changes (prev/next/pause/stop signals)
-                LoadTimedState();
-                if (_timedPaths == null) return;
-
-                if (_timedTimerStopped)
-                {
-                    _timedPaths = null;
-                    _history = null;
-                    _historyIndex = -1;
-                    _playlistTimer?.Dispose();
-                    _playlistTimer = null;
-                    _daemonCts?.Cancel();
-                    OnTimedPlaylistStopped?.Invoke();
-                    return;
-                }
-
-                if (_timedTimerPaused)
-                {
-                    _playlistTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
-                    return;
-                }
-
-                _timedRemainingMs -= 1000;
-                if (_timedRemainingMs > 0)
-                {
-                    _playlistTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
-                    return;
-                }
-
-                var next = AdvanceToNext();
-                if (next == null) return;
+                // Cover the race where CLI's Stop ran during our kill→launch
+                // gap: the new mpvpaper we launched after CLI's KillAll would
+                // otherwise survive forever.
                 KillCurrentProcess();
-                _current = Launch(_timedOptions, next);
-                _timedRemainingMs = (long)_timedInterval.TotalMilliseconds;
-                SaveTimedState();
-                _playlistTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
+                _timedPaths = null;
+                _history = null;
+                _historyIndex = -1;
+                _playlistTimer?.Dispose();
+                _playlistTimer = null;
+                _daemonCts?.Cancel();
+                OnTimedPlaylistStopped?.Invoke();
+                return;
             }
-        }, null, TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
+
+            if (_timedTimerPaused)
+            {
+                _playlistTimer?.Change(TickInterval, Timeout.InfiniteTimeSpan);
+                return;
+            }
+
+            var pending = ConsumePendingAction();
+            if (pending != null)
+            {
+                DispatchPendingAction(pending);
+                _playlistTimer?.Change(TickInterval, Timeout.InfiniteTimeSpan);
+                return;
+            }
+
+            _timedRemainingMs -= elapsedMs;
+            if (_timedRemainingMs <= 0)
+                AdvanceAndLaunch();
+
+            _playlistTimer?.Change(TickInterval, Timeout.InfiniteTimeSpan);
+        }
+    }
+
+    private static void LaunchAndReset(string path)
+    {
+        KillCurrentProcess();
+        _current = Launch(_timedOptions, path);
+        _timedRemainingMs = (long)_timedInterval.TotalMilliseconds;
+        SaveTimedState();
+    }
+
+    private static void AdvanceAndLaunch()
+    {
+        var next = AdvanceToNext();
+        if (next != null) LaunchAndReset(next);
+    }
+
+    private static void StepBackAndLaunch()
+    {
+        if (_history == null || _historyIndex <= 0) return;
+        _historyIndex--;
+        LaunchAndReset(_history[_historyIndex]);
+    }
+
+    private static void RandomAndLaunch()
+    {
+        if (_timedPaths == null || _timedPaths.Count == 0) return;
+        var current = _history != null && _historyIndex >= 0 && _historyIndex < _history.Count
+            ? _history[_historyIndex]
+            : null;
+        var pick = PickRandomExcluding(_timedPaths, current);
+        if (_history != null)
+        {
+            _history.Add(pick);
+            if (_history.Count > 100) _history.RemoveAt(0);
+            _historyIndex = _history.Count - 1;
+        }
+        LaunchAndReset(pick);
+    }
+
+    // Uniform pick from `pool` excluding `exclude`. No retries: shifts the
+    // chosen index past the excluded one to keep the distribution flat.
+    private static string PickRandomExcluding(IReadOnlyList<string> pool, string? exclude)
+    {
+        if (pool.Count == 1 || exclude == null) return pool[Random.Shared.Next(pool.Count)];
+        int excludeIdx = -1;
+        for (int i = 0; i < pool.Count; i++)
+            if (pool[i] == exclude) { excludeIdx = i; break; }
+        if (excludeIdx < 0) return pool[Random.Shared.Next(pool.Count)];
+        int pick = Random.Shared.Next(pool.Count - 1);
+        if (pick >= excludeIdx) pick++;
+        return pool[pick];
+    }
+
+    private static void DispatchPendingAction(string action)
+    {
+        switch (action)
+        {
+            case "next": AdvanceAndLaunch(); break;
+            case "prev": StepBackAndLaunch(); break;
+            case "random": RandomAndLaunch(); break;
+        }
     }
 
     public static void NextWallpaper()
     {
-        lock (_lock)
+        if (IsTimedPlaylistActive())
         {
-            if (_timedPaths == null && !LoadTimedState())
-            {
-                SendCommand("playlist-next");
-                return;
-            }
-            var next = AdvanceToNext();
-            if (next == null) return;
-            KillCurrentProcess();
-            _current = Launch(_timedOptions, next);
-            _timedRemainingMs = (long)_timedInterval.TotalMilliseconds;
-            SaveTimedState();
+            WritePendingAction("next");
+            return;
         }
+        // Single video / mpv-native playlist mode — let mpv handle it.
+        SendCommand("playlist-next");
     }
 
     public static void PreviousWallpaper()
     {
-        lock (_lock)
+        if (IsTimedPlaylistActive())
         {
-            if (_timedPaths == null && !LoadTimedState())
-            {
-                SendCommand("playlist-prev");
-                return;
-            }
-            if (_history == null || _historyIndex <= 0) return;
-            _historyIndex--;
-            KillCurrentProcess();
-            _current = Launch(_timedOptions, _history[_historyIndex]);
-            _timedRemainingMs = (long)_timedInterval.TotalMilliseconds;
-            SaveTimedState();
+            WritePendingAction("prev");
+            return;
         }
+        SendCommand("playlist-prev");
     }
 
     public static void UpdateTimedSettings(bool shuffle, int intervalSeconds)
@@ -360,6 +517,71 @@ public static class PlayerHelper
             KillAll();
             SignalTimerStop();
         }
+    }
+
+    // Re-apply the last saved session: timed playlist, mpv-native playlist,
+    // or single video. For timed playlists, delegates to a detached daemon.
+    public static void Restore()
+    {
+        var settings = SettingsService.Load();
+        var session = settings.LastSession;
+        if (session == null) return;
+
+        if (session.IsTimedPlaylist && session.Paths.Count > 0)
+            SpawnTimerDaemon();
+        else if (session.IsPlaylist && session.Paths.Count > 0)
+            ApplyPlaylist(session.Paths, settings.BuildMpvPlaylistOptions(), session.Shuffle);
+        else if (session.Paths.Count > 0)
+            Apply(session.Paths[0], settings.BuildMpvOptions());
+    }
+
+    // Pick a random video and apply it as a single wallpaper. If a timed
+    // playlist is active, hands off to the timer owner via a pending action
+    // so the daemon picks from its in-memory paths and resets the countdown.
+    // Otherwise picks from the full library as a one-shot.
+    public static void ApplyRandom()
+    {
+        if (IsTimedPlaylistActive())
+        {
+            WritePendingAction("random");
+            return;
+        }
+
+        var settings = SettingsService.Load();
+        var pool = LibraryService.LoadAll().Select(i => i.VideoPath).ToList();
+        if (pool.Count == 0) return;
+
+        var current = settings.LastSession?.Paths.FirstOrDefault();
+        var pick = PickRandomExcluding(pool, current);
+        Apply(pick, settings.BuildMpvOptions());
+        settings.LastSession = new LastSession { IsRandom = true, Paths = [pick] };
+        SettingsService.Save(settings);
+    }
+
+    // Owns the timed-playlist tick loop in a detached process. Resumes an
+    // already-running session if possible; otherwise restarts it. Blocks
+    // until the timer is signalled to stop.
+    public static void RunTimerDaemon()
+    {
+        var settings = SettingsService.Load();
+        var session = settings.LastSession;
+        if (session?.IsTimedPlaylist != true || session.Paths.Count == 0) return;
+
+        bool started = IsPlaying && ResumeTimedTimer();
+        if (!started)
+        {
+            if (settings.ResumeFromLast && RestoreTimedPlaylist()) { }
+            else
+            {
+                var paths = session.Shuffle
+                    ? session.Paths.OrderBy(_ => Guid.NewGuid()).ToList()
+                    : session.Paths;
+                ApplyTimedPlaylist(paths, settings.BuildMpvOptions(), session.Shuffle, session.TimedIntervalSeconds);
+            }
+        }
+        WriteTimerDaemonPid();
+        try { DaemonToken.WaitHandle.WaitOne(); }
+        finally { DeleteTimerDaemonPid(); }
     }
 
     public static void TogglePause()
@@ -506,6 +728,7 @@ public static class PlayerHelper
         _timedTimerPaused = false;
         _timedTimerStopped = false;
         _timedRemainingMs = 0;
+        ConsumePendingAction();
         KillCurrentProcess();
     }
 }

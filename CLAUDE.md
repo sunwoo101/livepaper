@@ -21,21 +21,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 dotnet run --project src/livepaper                    # run the app
 dotnet run --project src/livepaper -- --restore       # restore last session without opening UI
 dotnet run --project src/livepaper -- --random        # apply a random library wallpaper without opening UI
-dotnet build                                          # build
+dotnet build src/livepaper                            # build (no solution file at repo root)
 dotnet publish -r linux-x64 --self-contained          # single binary release
 ```
 
 ## CLI Flags
 
-- `--restore` — re-applies the last session (single video, playlist, or random) without opening the UI. Useful for compositor autostart (e.g. `exec-once = livepaper --restore` in Hyprland).
+- `--restore` — re-applies the last session (single video, playlist, or random) without opening the UI. Useful for compositor autostart (e.g. `exec-once = livepaper --restore` in Hyprland). Always one-shot: for timed playlists it `setsid`-spawns `--timer-daemon` and returns immediately.
 - `--random` — picks a random video from the library and applies it, then exits. Saves the picked video so `--restore` replays the same one.
-- `--monitor` — starts `AudioMonitor` using saved settings and blocks indefinitely. Spawned automatically as a detached process when the app closes with AutoMute enabled; killed when the app reopens.
-- `--action=<action>` — sends a command to the running session and exits. Intended for compositor keybinds. Actions:
+- `--kill` — stops playback (kills mpvpaper and signals the timed playlist timer to stop), then exits.
+- `--monitor` *(internal)* — starts `AudioMonitor` using saved settings and blocks indefinitely. Spawned automatically as a detached process when the app closes with AutoMute enabled; killed when the app reopens.
+- `--timer-daemon` *(internal)* — owns the timed-playlist tick loop and blocks indefinitely. Spawned automatically as a detached process by `--restore` (timed-playlist case) and by the GUI on close; killed when the app reopens.
+- `--action=<action>` — sends a command to the running session and exits. Intended for compositor keybinds. The Settings tab also exposes these as copy-paste keybind snippets, so the action set is duplicated with `--kill`/`--restore` for parity. Actions:
   - `toggle-mute` — toggle mpv mute
   - `toggle-pause` — pause/resume mpv playback AND the timed playlist timer (timer resumes with remaining time preserved)
-  - `stop` — kill mpvpaper and signal the timed playlist timer to stop
-  - `play` — relaunch the last session exactly as saved
-  - `toggle-play` — stop if playing, play if stopped
+  - `stop` — stop playback (alias of `--kill`)
+  - `play` — relaunch the last session (alias of `--restore`)
+  - `toggle-play` — stop if playing, otherwise relaunch the last session
   - `next-wallpaper` — advance to next wallpaper in history/playlist
   - `previous-wallpaper` — go back in wallpaper history
 
@@ -48,24 +50,29 @@ The app has three tabs:
 - Grid of wallpaper cards (thumbnail + title); clicking a thumbnail opens a fullscreen preview modal
 - Search box (enabled only for sources that support it)
 - Refresh button and loading bar (thin strip below the top bar, no layout shift)
-- Multi-select via Shift-click, Ctrl-click, Ctrl+A; "Download & Apply" downloads all selected, applies the clicked one
+- Per-card "Download & Apply" downloads + applies that card only
+- **Selection toolbar** docks at bottom when ≥1 card is selected (Shift-click / Ctrl-click / Ctrl+A): "N selected", `Download` (downloads all selected, no apply), `Cancel`
 
 ### Library Tab
-- Grid of all downloaded wallpapers with checkmark badge (+ / ✓) to add/remove from playlist
-- Multi-select via Shift-click, Ctrl-click, Ctrl+A; checkmark on any selected card acts on all selected
-- "Play All" button with a "Shuffle" toggle — loops through the entire library via mpv playlist
+- Grid of all downloaded wallpapers with circular badge in top-right: `+` to add to playlist, `−` to remove. Always visible.
+- Per-card buttons act on that card only (no multi-select fan-out)
+- "Play All" button with a "Shuffle" toggle — plays the entire library; rotation behaviour follows the global Settings → PLAYLIST panel (timer or advance-on-video-end)
 - Per-card: Apply (sets as wallpaper) and Delete (removes from disk and library)
-- **Playlist strip** (always visible at bottom): horizontal row of small thumbnails; hover to reveal ✕; drag to reorder
-  - ⚙ opens settings popup (Sequential/Shuffle order, Hours/Minutes/Seconds interval)
-  - 📂/💾 load/save playlist as JSON; ▶ Play starts timed cycling
-  - Playlist state auto-saved to `~/.config/livepaper/playlist_state.json` on every change
+- **Selection toolbar** docks above the playlist strip when ≥1 card is selected: "N selected", `Add to Playlist`, `Remove from Playlist`, `Delete`, `Cancel`
+- **Playlist strip** (always visible at bottom): horizontal row of small thumbnails; circular `−` badge always visible (matches library + badge); hover reveals dim + ▶ play overlay; drag to reorder; click plays that wallpaper
+  - ⚙ opens settings popup (Sequential/Shuffle order; per-playlist `Override global rotation settings` checkbox unlocks per-playlist Interval and AdvanceOnVideoEnd)
+  - 📂/💾 load/save named playlists (modals — text input with autocomplete for save, dropdown for load); playlists stored at `~/.local/share/livepaper/playlists/<name>.json`
+  - ▶ Play starts the playlist
+  - Playlist auto-state saved to `~/.config/livepaper/playlist_state.json` on every change (paths, order, override flag, current name)
 
 ### Settings Tab
 - Playback: Loop, Mute audio, Disable cache, Volume slider (0–100, live via mpv IPC)
+- Playlist (global rotation): Switch when video ends checkbox + Hours/Minutes/Seconds interval. Drives Play All and any playlist that doesn't have `Override global rotation settings` enabled.
+- Auto-Mute: Mute when system audio plays + threshold/delay knobs
 - Memory: Demuxer max bytes / back bytes (NumericUpDown, integer MiB)
 - Rendering: Hardware decoding (auto / nvdec / vaapi / no)
-- Live mpv options preview
-- Reset to Defaults button
+- Wallpaper Engine: workshop folder picker + Copy files toggle
+- Live mpv options preview; Reset to Defaults; copy-paste keybind snippets for `--action=…`
 
 ## Architecture
 
@@ -180,7 +187,14 @@ mpvpaper -o "<mpv-options>" '*' /path/to/wallpaper.mp4
 - Memory: `DemuxerMaxBytes`, `DemuxerMaxBackBytes` (int, MiB)
 - `HwDec`: `"auto"` | `"nvdec"` | `"vaapi"` | `"no"` (no cuda — deprecated on modern NVIDIA)
 - Auto-mute: `AutoMute` (bool, default false), `AutoMuteDelayMs` (default 200), `AutoUnmuteDelayMs` (default 2000), `AutoMuteThresholdDb` (default -70.0)
+- Global rotation: `GlobalIntervalSeconds` (default 1800), `GlobalAdvanceOnVideoEnd` (default false)
+- Wallpaper Engine: `WallpaperEnginePath`, `WeCopyFiles`, `ResumeFromLast`
 - `LastSession`: tracks the last applied mode for `--restore`
+
+`CustomPlaylist` (JSON at `~/.config/livepaper/playlist_state.json` for in-progress, and per-name files in `~/.local/share/livepaper/playlists/`):
+- `VideoPaths`, `Name` (nullable; only set after Save or Load)
+- `Settings.Order` (Sequential/Shuffle), `Settings.OverrideGlobalSettings`, `Settings.IntervalSeconds`, `Settings.AdvanceOnVideoEnd`
+- Per-playlist `IntervalSeconds`/`AdvanceOnVideoEnd` are only used when `OverrideGlobalSettings` is true; otherwise the global values apply.
 
 `LastSession` model:
 - `IsPlaylist` — was it a Play All session
@@ -192,12 +206,24 @@ mpvpaper -o "<mpv-options>" '*' /path/to/wallpaper.mp4
 
 `--restore` replays the session exactly: single video, playlist (with original paths + shuffle), timed playlist, or the specific video that `--random` picked.
 
-**Timed playlist** (`PlayerHelper.ApplyTimedPlaylist`): uses `System.Threading.Timer` polling every 1 second. Tracks `_timedRemainingMs` in-memory; decrements each tick and relaunches mpvpaper when it reaches zero. On shuffle, re-randomizes at the end of each cycle ensuring the first video of the new cycle differs from the last of the previous one.
+**Timed playlist** (`PlayerHelper.ApplyTimedPlaylist`): `System.Threading.Timer` ticks every 100ms. Decrement uses real elapsed time (`DateTime.UtcNow` deltas) so jitter and pause windows don't drift the countdown. On shuffle, `AdvanceToNext` re-randomizes `_timedPaths` at the end of each cycle, with a do/while guarantee that the new cycle's first ≠ the old cycle's last. State at `~/.config/livepaper/timed_state.json` is only re-written on significant events (advance, pending action processed, pause/stop signals, settings update, graceful handoff) — not every tick — because the in-memory `_timedRemainingMs` is now authoritative.
 
-**Stop/pause signals**: `TimedState` record includes `TimerStopped` and `TimerPaused` bool flags persisted to `timed_state.json`. Each timer tick calls `LoadTimedState()` to pick up changes written by CLI processes:
-- `Stop()` → `SignalTimerStop()` sets `TimerStopped=true`; timer exits without rescheduling within 1 second
-- `TogglePause()` → sends `cycle pause` to mpv IPC + flips `TimerPaused` in state file; timer freezes `_timedRemainingMs` while paused, resumes from where it left off on unpause
-- `NextWallpaper()` / `PreviousWallpaper()` reset `_timedRemainingMs` to the full interval after skipping
+**Tick state sync**: each tick calls `RefreshSignals()` (lighter than `LoadTimedState`) which only re-reads `TimerStopped` and `TimerPaused`. The owner's authoritative `_timedRemainingMs` / history are left alone.
+
+**Pending-action IPC** (`~/.config/livepaper/pending_action.txt`): atomic write+rename file used by CLI mutators when a timed playlist is active. Single string content: `next` / `prev` / `random`. The timer owner's tick consumes it (read+delete) and dispatches to `AdvanceAndLaunch` / `StepBackAndLaunch` / `RandomAndLaunch`. All three call `LaunchAndReset`, which kills the current mpvpaper, launches the new one, and resets `_timedRemainingMs` to the full interval. This makes `--random` skip-to-random preserve a full interval before normal progression resumes.
+
+**Stop/pause signals**: `TimedState` record includes `TimerStopped` and `TimerPaused` bool flags persisted to `timed_state.json`:
+- `Stop()` → `KillAll()` (kills mpvpaper) + `SignalTimerStop()` (read-modify-write `TimerStopped=true`); the daemon's stopped-branch in `Tick()` also calls `KillCurrentProcess()` to cover the kill→launch race where the daemon launched a new mpvpaper after CLI's `KillAll`
+- `TogglePause()` → sends `cycle pause` to mpv IPC + flips `TimerPaused` in state file; tick freezes the decrement while paused, resumes from where it left off on unpause
+- `NextWallpaper()` / `PreviousWallpaper()` / `ApplyRandom()` write to `pending_action.txt` if a timed playlist is active; otherwise fall back to mpv's `playlist-next`/`playlist-prev` IPC (single video / Play All) or a one-shot library random pick
+
+**Timer ownership**: at most one process owns the timer at a time.
+- Daemon writes `timer.pid` (via `WriteTimerDaemonPid`); GUI writes `gui_timer.pid` on startup, deletes on close.
+- `KillTimerDaemon()` kills any orphan daemon by PID file (called on GUI startup and inside `SpawnTimerDaemon`).
+- `SpawnTimerDaemon()` bails if `IsGuiTimerAlive()` so `--restore` from a terminal can't spawn a competing daemon while the GUI is open.
+- GUI's window-close handler clears `gui_timer.pid` *before* calling `SpawnTimerDaemon`, allowing the handoff.
+
+**`IsTimedPlaylistActive()`**: state-file check (`Paths.Count > 0 && !TimerStopped`) used by `toggle-play` and the CLI mutators to decide whether to delegate via `pending_action.txt` or fall back to local execution. Survives the brief kill→launch gap where mpvpaper is momentarily down.
 
 ## Distribution
 
