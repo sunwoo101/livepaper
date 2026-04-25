@@ -33,7 +33,7 @@ Installs the binary to `~/.local/bin/livepaper` and registers the app in your la
 ```bash
 livepaper                     # open the app
 livepaper --restore           # re-apply the last wallpaper without opening the app
-livepaper --random            # apply a random wallpaper from your library
+livepaper --random            # pick a random wallpaper (from the active playlist if one's running, otherwise the library)
 livepaper --kill              # stop the wallpaper
 livepaper --action=<action>   # control the running session (see Compositor keybinds)
 ```
@@ -63,6 +63,7 @@ exec livepaper --restore
 - `toggle-mute` — toggle audio mute
 - `next-wallpaper` — skip forward in the playlist
 - `previous-wallpaper` — go back one wallpaper
+- `random` — pick a random wallpaper (from the active playlist if one's running, otherwise the library)
 
 The Settings tab provides ready-to-copy snippets for each.
 

@@ -51,6 +51,9 @@ sealed class Program
                 case "previous-wallpaper":
                     PlayerHelper.PreviousWallpaper();
                     break;
+                case "random":
+                    PlayerHelper.ApplyRandom();
+                    break;
             }
             return;
         }

@@ -789,7 +789,7 @@
                                     <TextBlock Text="Bind these commands in your compositor config:"
                                                Foreground="{StaticResource Subtext}"
                                                FontSize="12"/>
-                                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,8,Auto,8,Auto,8,Auto,8,Auto,8,Auto,8,Auto">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,8,Auto,8,Auto,8,Auto,8,Auto,8,Auto,8,Auto,8,Auto">
                                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Toggle mute"
                                                    Foreground="{StaticResource TextColor}" FontSize="12"
                                                    VerticalAlignment="Center" Margin="0,0,16,0"/>
@@ -859,6 +859,16 @@
                                                    Foreground="{StaticResource Accent}" VerticalAlignment="Center"/>
                                         <Button Grid.Row="12" Grid.Column="2" Content="Copy" Classes="ghost" FontSize="11" Margin="8,0,0,0"
                                                 Command="{Binding CopyTextCommand}" CommandParameter="livepaper --action=previous-wallpaper"/>
+
+                                        <TextBlock Grid.Row="14" Grid.Column="0" Text="Random wallpaper"
+                                                   Foreground="{StaticResource TextColor}" FontSize="12"
+                                                   VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                        <TextBlock Grid.Row="14" Grid.Column="1"
+                                                   Text="livepaper --action=random"
+                                                   FontFamily="Monospace" FontSize="12"
+                                                   Foreground="{StaticResource Accent}" VerticalAlignment="Center"/>
+                                        <Button Grid.Row="14" Grid.Column="2" Content="Copy" Classes="ghost" FontSize="11" Margin="8,0,0,0"
+                                                Command="{Binding CopyTextCommand}" CommandParameter="livepaper --action=random"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>

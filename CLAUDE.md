@@ -40,6 +40,7 @@ dotnet publish -r linux-x64 --self-contained          # single binary release
   - `toggle-play` — stop if playing, otherwise relaunch the last session
   - `next-wallpaper` — advance to next wallpaper in history/playlist
   - `previous-wallpaper` — go back in wallpaper history
+  - `random` — alias of `--random` (picks from active playlist if running, else from library)
 
 ## UI Structure
 
