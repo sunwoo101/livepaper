@@ -66,10 +66,14 @@ public static class ImportService
             }
         }
 
+        // Write the .id sidecar *before* the slow thumbnail extraction so
+        // any concurrent LibraryService.LoadAll observes the new .mp4 with
+        // its matching SourceId, not without one. Keeps SourceId-based
+        // dedup in ConfirmImport reliable.
+        await File.WriteAllTextAsync(idPath, sourceId);
+
         // Best-effort thumbnail; absence is non-fatal.
         await TryExtractThumbnailAsync(videoPath, thumbPath);
-
-        await File.WriteAllTextAsync(idPath, sourceId);
 
         return new LibraryItem
         {
