@@ -27,7 +27,7 @@ public class AppSettings
     public int AutoUnmuteDelayMs { get; set; } = 2000;
     public double AutoMuteThresholdDb { get; set; } = -70.0;
     public int GlobalIntervalSeconds { get; set; } = 1800;
-    public bool GlobalAdvanceOnVideoEnd { get; set; } = false;
+    public bool GlobalAdvanceOnVideoEnd { get; set; } = true;
     public LastSession? LastSession { get; set; }
 
     public string BuildMpvOptions()

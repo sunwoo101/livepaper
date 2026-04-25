@@ -9,7 +9,7 @@ public class PlaylistSettings
     public PlaylistOrder Order { get; set; } = PlaylistOrder.Sequential;
     public bool OverrideGlobalSettings { get; set; } = false;
     public int IntervalSeconds { get; set; } = 1800;
-    public bool AdvanceOnVideoEnd { get; set; } = false;
+    public bool AdvanceOnVideoEnd { get; set; } = true;
 }
 
 public class CustomPlaylist

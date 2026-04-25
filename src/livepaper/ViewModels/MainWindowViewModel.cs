@@ -156,14 +156,14 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private decimal _intervalHours = 0;
     [ObservableProperty] private decimal _intervalMinutes = 30;
     [ObservableProperty] private decimal _intervalSeconds = 0;
-    [ObservableProperty] private bool _advanceOnVideoEnd;
+    [ObservableProperty] private bool _advanceOnVideoEnd = true;
     [ObservableProperty] private bool _overrideGlobalSettings;
 
     // Global rotation settings (Settings tab)
     [ObservableProperty] private decimal _globalIntervalHours;
     [ObservableProperty] private decimal _globalIntervalMinutes;
     [ObservableProperty] private decimal _globalIntervalSeconds;
-    [ObservableProperty] private bool _globalAdvanceOnVideoEnd;
+    [ObservableProperty] private bool _globalAdvanceOnVideoEnd = true;
 
     partial void OnAutoMuteChanged(bool value)
     {
