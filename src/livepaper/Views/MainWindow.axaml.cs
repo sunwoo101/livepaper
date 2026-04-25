@@ -46,6 +46,7 @@ public partial class MainWindow : Window
         {
             _boundVm.PropertyChanged -= OnViewModelPropertyChanged;
             _boundVm.PickFolderDialog = null;
+            _boundVm.PickVideoDialog = null;
             _boundVm.CopyToClipboard = null;
             _boundVm = null;
         }
@@ -53,13 +54,44 @@ public partial class MainWindow : Window
         {
             vm.PropertyChanged += OnViewModelPropertyChanged;
             vm.PickFolderDialog = PickFolderDialogAsync;
+            vm.PickVideoDialog = PickVideoDialogAsync;
             vm.CopyToClipboard = async text =>
             {
+                // Try wl-copy first — it forks a daemon that keeps holding
+                // the clipboard selection after livepaper exits. Avalonia's
+                // own clipboard releases ownership on app close, so without
+                // wl-copy (or a separate clipboard manager) the snippet is
+                // lost as soon as the user closes the window.
+                if (await TryWlCopyAsync(text)) return;
                 var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
                 if (clipboard != null)
                     await clipboard.SetTextAsync(text);
             };
             _boundVm = vm;
+        }
+    }
+
+    private static async Task<bool> TryWlCopyAsync(string text)
+    {
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo("wl-copy")
+            {
+                UseShellExecute = false,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            using var proc = System.Diagnostics.Process.Start(psi);
+            if (proc == null) return false;
+            await proc.StandardInput.WriteAsync(text);
+            proc.StandardInput.Close();
+            await proc.WaitForExitAsync();
+            return proc.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
         }
     }
 
@@ -71,6 +103,22 @@ public partial class MainWindow : Window
             AllowMultiple = false
         });
         return folders.Count > 0 ? folders[0].Path.LocalPath : null;
+    }
+
+    private static readonly FilePickerFileType VideoFileType = new("Video files")
+    {
+        Patterns = ["*.mp4", "*.webm", "*.mov", "*.mkv", "*.avi", "*.gif"]
+    };
+
+    private async Task<string?> PickVideoDialogAsync()
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Import Video as Wallpaper",
+            FileTypeFilter = [VideoFileType],
+            AllowMultiple = false
+        });
+        return files.Count > 0 ? files[0].Path.LocalPath : null;
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)

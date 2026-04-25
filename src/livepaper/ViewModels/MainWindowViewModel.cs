@@ -64,6 +64,11 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private string? _selectedPlaylistToLoad;
     [ObservableProperty] private string? _currentPlaylistName;
 
+    [ObservableProperty] private bool _isImportOpen;
+    [ObservableProperty] private string _importTitle = "";
+    [ObservableProperty] private bool _isImporting;
+    private string _importSourcePath = "";
+
     private CancellationTokenSource? _clearLibraryCts;
 
     partial void OnDownloadProgressChanged(double value) =>
@@ -222,6 +227,61 @@ public partial class MainWindowViewModel : ViewModelBase
         if (path != null) WallpaperEnginePath = path;
     }
 
+    [RelayCommand]
+    private async Task OpenImport()
+    {
+        if (PickVideoDialog == null) return;
+        var path = await PickVideoDialog();
+        if (string.IsNullOrEmpty(path)) return;
+        _importSourcePath = path;
+        ImportTitle = Path.GetFileNameWithoutExtension(path);
+        IsImportOpen = true;
+    }
+
+    [RelayCommand]
+    private void CancelImport()
+    {
+        IsImportOpen = false;
+        _importSourcePath = "";
+        ImportTitle = "";
+    }
+
+    [RelayCommand]
+    private async Task ConfirmImport()
+    {
+        var source = _importSourcePath;
+        var title = ImportTitle?.Trim();
+        if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(title)) return;
+
+        IsImportOpen = false;
+        IsImporting = true;
+        StatusMessage = $"Importing {title}...";
+
+        try
+        {
+            var item = await ImportService.ImportAsync(source, title);
+            if (item == null)
+            {
+                StatusMessage = "Import failed";
+                return;
+            }
+            // Drop any pre-existing card with the same path (re-import case).
+            var existing = LibraryWallpapers.FirstOrDefault(c => c.LibraryItem?.VideoPath == item.VideoPath);
+            if (existing != null) LibraryWallpapers.Remove(existing);
+            LibraryWallpapers.Add(MakeLibraryCard(item));
+            StatusMessage = $"Imported: {item.Title}";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Import failed: {ex.Message}";
+        }
+        finally
+        {
+            IsImporting = false;
+            _importSourcePath = "";
+        }
+    }
+
     partial void OnPlaylistShuffleChanged(bool value) { SavePlaylistStateDebounced(); ApplyTimedSettingsIfRunning(); }
     partial void OnIntervalHoursChanged(decimal value) { SavePlaylistStateDebounced(); if (OverrideGlobalSettings) ApplyTimedSettingsIfRunning(); }
     partial void OnIntervalMinutesChanged(decimal value) { SavePlaylistStateDebounced(); if (OverrideGlobalSettings) ApplyTimedSettingsIfRunning(); }
@@ -270,6 +330,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private int _lastBrowseSelectedIndex = -1;
 
     public Func<Task<string?>>? PickFolderDialog { get; set; }
+    public Func<Task<string?>>? PickVideoDialog { get; set; }
     public Func<string, Task>? CopyToClipboard { get; set; }
 
     [RelayCommand]

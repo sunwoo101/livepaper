@@ -8,6 +8,8 @@ A live wallpaper manager for Wayland. Browse and download animated wallpapers fr
 
 - Wayland compositor (Hyprland, Sway, GNOME on Wayland, etc.)
 - [mpvpaper](https://github.com/GhostNaN/mpvpaper)
+- `ffmpeg` (optional — only used for auto-generating thumbnails when importing a video as a wallpaper)
+- `wl-clipboard` (optional — lets the Settings-tab "Copy" buttons keep snippets on the clipboard after livepaper closes)
 - .NET 10 SDK (for building from source)
 
 ## Installation
@@ -64,6 +66,7 @@ exec livepaper --restore
 - `next-wallpaper` — skip forward in the playlist
 - `previous-wallpaper` — go back one wallpaper
 - `random` — pick a random wallpaper (from the active playlist if one's running, otherwise the library)
+- `volume-up` / `volume-down` — adjust volume by 5 (persists; clamped 0-100)
 
 The Settings tab provides ready-to-copy snippets for each.
 
@@ -88,6 +91,8 @@ bind = SUPER, P, exec, livepaper --action=toggle-play
 ## Library
 
 Downloaded wallpapers are saved to `~/.local/share/livepaper/library/`. Use the Library tab to apply, delete, or build playlists from them. **Multi-select** with Shift-click / Ctrl-click / Ctrl+A — a toolbar appears at the bottom with bulk actions (Add to Playlist, Remove from Playlist, Delete).
+
+**Import** lets you bring any local video file (mp4, webm, mov, mkv, avi, gif) into the library. A title-input modal opens after you pick the file; livepaper copies the video and uses `ffmpeg` to auto-generate a thumbnail.
 
 **Play All** plays your entire library; rotation behaviour follows the global Settings → Playlist panel (timer interval or advance-on-video-end). The **Shuffle** toggle randomizes the order.
 

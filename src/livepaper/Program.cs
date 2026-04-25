@@ -54,6 +54,12 @@ sealed class Program
                 case "random":
                     PlayerHelper.ApplyRandom();
                     break;
+                case "volume-up":
+                    PlayerHelper.AdjustVolume(5);
+                    break;
+                case "volume-down":
+                    PlayerHelper.AdjustVolume(-5);
+                    break;
             }
             return;
         }

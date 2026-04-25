@@ -14,15 +14,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `.NET SDK` — for building
 - `pactl` — PulseAudio/PipeWire CLI; required for Auto-Mute stream detection
 - `parec` — PulseAudio record tool; required for Auto-Mute audio level measurement
+- `ffmpeg` *(optional)* — used for thumbnail extraction in the **Import Wallpaper** flow; absent → import still succeeds but the entry has no thumbnail
+- `wl-clipboard` *(optional)* — `wl-copy` is invoked by the Settings-tab keybind Copy buttons so snippets persist after livepaper exits. Absent → falls back to Avalonia's clipboard, which releases the selection when the app closes (snippet only pasteable while livepaper is open).
 
 ## Common Commands
 
 ```bash
-dotnet run --project src/livepaper                    # run the app
-dotnet run --project src/livepaper -- --restore       # restore last session without opening UI
-dotnet run --project src/livepaper -- --random        # apply a random library wallpaper without opening UI
-dotnet build src/livepaper                            # build (no solution file at repo root)
-dotnet publish -r linux-x64 --self-contained          # single binary release
+dotnet run --project src/livepaper                            # run the app
+dotnet run --project src/livepaper -- --restore               # restore last session without opening UI
+dotnet run --project src/livepaper -- --random                # apply a random library wallpaper without opening UI
+dotnet build src/livepaper                                    # build (no solution file at repo root)
+dotnet publish src/livepaper -r linux-x64 --self-contained    # single binary release
 ```
 
 ## CLI Flags
@@ -41,6 +43,7 @@ dotnet publish -r linux-x64 --self-contained          # single binary release
   - `next-wallpaper` — advance to next wallpaper in history/playlist
   - `previous-wallpaper` — go back in wallpaper history
   - `random` — alias of `--random` (picks from active playlist if running, else from library)
+  - `volume-up` / `volume-down` — adjust volume by 5 (clamped 0-100); persists to settings.json so the slider and next launch reflect the new value
 
 ## UI Structure
 
@@ -57,6 +60,7 @@ The app has three tabs:
 ### Library Tab
 - Grid of all downloaded wallpapers with circular badge in top-right: `+` to add to playlist, `−` to remove. Always visible.
 - Per-card buttons act on that card only (no multi-select fan-out)
+- "Import" button opens a file picker (`.mp4`/`.webm`/`.mov`/`.mkv`/`.avi`/`.gif`); a title-input modal then copies the video to the library and runs `ffmpeg` to extract a 320px-wide thumbnail at the 1-second mark. The `.id` sidecar holds `import:<source-path>` for re-import dedupe.
 - "Play All" button with a "Shuffle" toggle — plays the entire library; rotation behaviour follows the global Settings → PLAYLIST panel (timer or advance-on-video-end)
 - Per-card: Apply (sets as wallpaper) and Delete (removes from disk and library)
 - **Selection toolbar** docks above the playlist strip when ≥1 card is selected: "N selected", `Add to Playlist`, `Remove from Playlist`, `Delete`, `Cancel`
