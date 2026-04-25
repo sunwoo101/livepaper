@@ -133,9 +133,11 @@ Plain HTTP with the Firefox User-Agent works — no browser automation needed.
 ### Wallpaper Engine local
 
 - Workshop path: `~/.local/share/Steam/steamapps/workshop/content/431960/`
-- Scan recursively for `*.mp4` files (exclude `scene.pkg`)
-- For each MP4, read `project.json` in the same directory to get `title`
-- Thumbnail: `preview.jpg` or any `.gif`/`.png`/`.jpg` in the same directory
+- Discovery is driven from each `<id>/project.json`:
+  - Skip when `type` isn't `"video"` (filters out `scene`, `web`, `application`)
+  - `file` field gives the actual video filename (any container mpv supports — `.mp4`, `.webm`, `.mov`, `.mkv`, …)
+  - `title` field becomes the wallpaper title
+- Thumbnail: `preview.jpg` or any `.gif`/`.png`/`.jpg`/`.jpeg` in the same directory
 
 ## File Naming & Library
 
