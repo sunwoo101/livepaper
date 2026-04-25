@@ -50,8 +50,10 @@ public static class ImportService
             // Copy to a sibling .tmp first, then atomically rename. If the
             // copy fails partway (source disappears, disk full, etc.) the
             // existing library entry is left intact instead of being deleted
-            // and replaced with nothing.
-            var tmpPath = videoPath + ".tmp";
+            // and replaced with nothing. The GUID suffix prevents two
+            // concurrent imports targeting the same videoPath from racing
+            // on a shared `.tmp` file.
+            var tmpPath = $"{videoPath}.{Guid.NewGuid():N}.tmp";
             try
             {
                 await Task.Run(() => File.Copy(sourcePath, tmpPath, overwrite: true));
