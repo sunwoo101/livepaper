@@ -8,8 +8,9 @@ A live wallpaper manager for Wayland. Browse and download animated wallpapers fr
 
 - Wayland compositor (Hyprland, Sway, GNOME on Wayland, etc.)
 - [mpvpaper](https://github.com/GhostNaN/mpvpaper)
-- `ffmpeg` (optional — only used for auto-generating thumbnails when importing a video as a wallpaper)
-- `wl-clipboard` (optional — lets the Settings-tab "Copy" buttons keep snippets on the clipboard after livepaper closes)
+- `ffmpeg` (auto-generates thumbnails when importing videos)
+- `libpulse` (provides `pactl`/`parec` for Auto-Mute; satisfied by either `pulseaudio` or `pipewire-pulse` on Arch)
+- `wl-clipboard` (`wl-copy` keeps Settings-tab snippets on the clipboard after livepaper closes)
 - .NET 10 SDK (for building from source)
 
 ## Installation

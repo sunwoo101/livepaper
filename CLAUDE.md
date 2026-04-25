@@ -12,10 +12,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `mpv` — underlying player used by mpvpaper
 - Wayland compositor (e.g. Hyprland, Sway, GNOME on Wayland)
 - `.NET SDK` — for building
-- `pactl` — PulseAudio/PipeWire CLI; required for Auto-Mute stream detection
-- `parec` — PulseAudio record tool; required for Auto-Mute audio level measurement
-- `ffmpeg` *(optional)* — used for thumbnail extraction in the **Import Wallpaper** flow; absent → import still succeeds but the entry has no thumbnail
-- `wl-clipboard` *(optional)* — `wl-copy` is invoked by the Settings-tab keybind Copy buttons so snippets persist after livepaper exits. Absent → falls back to Avalonia's clipboard, which releases the selection when the app closes (snippet only pasteable while livepaper is open).
+- `pactl` / `parec` (from `libpulse` on Arch) — PulseAudio/PipeWire CLI tools; required for Auto-Mute stream detection and audio level measurement
+- `ffmpeg` — required for thumbnail extraction in the **Import Wallpaper** flow
+- `wl-clipboard` — `wl-copy` is invoked by the Settings-tab keybind Copy buttons so snippets persist after livepaper exits. Falls back to Avalonia's clipboard if missing, but the clipboard releases the selection on app close (snippet only pasteable while livepaper is open).
 
 ## Common Commands
 
