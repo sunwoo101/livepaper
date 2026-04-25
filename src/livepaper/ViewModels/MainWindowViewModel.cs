@@ -64,6 +64,11 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private string? _selectedPlaylistToLoad;
     [ObservableProperty] private string? _currentPlaylistName;
 
+    [ObservableProperty] private bool _isImportOpen;
+    [ObservableProperty] private string _importTitle = "";
+    [ObservableProperty] private bool _isImporting;
+    private string _importSourcePath = "";
+
     private CancellationTokenSource? _clearLibraryCts;
 
     partial void OnDownloadProgressChanged(double value) =>
@@ -222,6 +227,77 @@ public partial class MainWindowViewModel : ViewModelBase
         if (path != null) WallpaperEnginePath = path;
     }
 
+    [RelayCommand]
+    private async Task OpenImport()
+    {
+        if (PickVideoDialog == null) return;
+        var path = await PickVideoDialog();
+        if (string.IsNullOrEmpty(path)) return;
+        _importSourcePath = path;
+        ImportTitle = Path.GetFileNameWithoutExtension(path);
+        IsImportOpen = true;
+    }
+
+    [RelayCommand]
+    private void CancelImport()
+    {
+        IsImportOpen = false;
+        _importSourcePath = "";
+        ImportTitle = "";
+    }
+
+    [RelayCommand]
+    private async Task ConfirmImport()
+    {
+        var source = _importSourcePath;
+        var title = ImportTitle?.Trim();
+        if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(title)) return;
+
+        IsImportOpen = false;
+        IsImporting = true;
+        StatusMessage = $"Importing {title}...";
+
+        try
+        {
+            var item = await ImportService.ImportAsync(source, title);
+            if (item == null)
+            {
+                StatusMessage = "Import failed";
+                return;
+            }
+            // Re-import dedup by SourceId: if a card already represents this
+            // source, swap the new card in at the same library index AND
+            // update any PlaylistItems entry pointing at the old card so
+            // playlist references stay valid + IsInPlaylist state is preserved.
+            var existing = !string.IsNullOrEmpty(item.SourceId)
+                ? LibraryWallpapers.FirstOrDefault(c => c.LibraryItem?.SourceId == item.SourceId)
+                : null;
+            var newCard = MakeLibraryCard(item);
+            if (existing != null)
+            {
+                int libIdx = LibraryWallpapers.IndexOf(existing);
+                int playlistIdx = PlaylistItems.IndexOf(existing);
+                newCard.IsInPlaylist = existing.IsInPlaylist;
+                LibraryWallpapers[libIdx] = newCard;
+                if (playlistIdx >= 0) PlaylistItems[playlistIdx] = newCard;
+            }
+            else
+            {
+                LibraryWallpapers.Add(newCard);
+            }
+            StatusMessage = $"Imported: {item.Title}";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Import failed: {ex.Message}";
+        }
+        finally
+        {
+            IsImporting = false;
+            _importSourcePath = "";
+        }
+    }
+
     partial void OnPlaylistShuffleChanged(bool value) { SavePlaylistStateDebounced(); ApplyTimedSettingsIfRunning(); }
     partial void OnIntervalHoursChanged(decimal value) { SavePlaylistStateDebounced(); if (OverrideGlobalSettings) ApplyTimedSettingsIfRunning(); }
     partial void OnIntervalMinutesChanged(decimal value) { SavePlaylistStateDebounced(); if (OverrideGlobalSettings) ApplyTimedSettingsIfRunning(); }
@@ -270,6 +346,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private int _lastBrowseSelectedIndex = -1;
 
     public Func<Task<string?>>? PickFolderDialog { get; set; }
+    public Func<Task<string?>>? PickVideoDialog { get; set; }
     public Func<string, Task>? CopyToClipboard { get; set; }
 
     [RelayCommand]

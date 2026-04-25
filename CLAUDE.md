@@ -12,17 +12,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `mpv` — underlying player used by mpvpaper
 - Wayland compositor (e.g. Hyprland, Sway, GNOME on Wayland)
 - `.NET SDK` — for building
-- `pactl` — PulseAudio/PipeWire CLI; required for Auto-Mute stream detection
-- `parec` — PulseAudio record tool; required for Auto-Mute audio level measurement
+- `pactl` / `parec` (from `libpulse` on Arch) — PulseAudio/PipeWire CLI tools; required for Auto-Mute stream detection and audio level measurement
+- `ffmpeg` — required for thumbnail extraction in the **Import Wallpaper** flow
+- `wl-clipboard` — `wl-copy` is invoked by the Settings-tab keybind Copy buttons so snippets persist after livepaper exits. Falls back to Avalonia's clipboard if missing, but the clipboard releases the selection on app close (snippet only pasteable while livepaper is open).
 
 ## Common Commands
 
 ```bash
-dotnet run --project src/livepaper                    # run the app
-dotnet run --project src/livepaper -- --restore       # restore last session without opening UI
-dotnet run --project src/livepaper -- --random        # apply a random library wallpaper without opening UI
-dotnet build src/livepaper                            # build (no solution file at repo root)
-dotnet publish -r linux-x64 --self-contained          # single binary release
+dotnet run --project src/livepaper                            # run the app
+dotnet run --project src/livepaper -- --restore               # restore last session without opening UI
+dotnet run --project src/livepaper -- --random                # apply a random library wallpaper without opening UI
+dotnet build src/livepaper                                    # build (no solution file at repo root)
+dotnet publish src/livepaper -r linux-x64 --self-contained    # single binary release
 ```
 
 ## CLI Flags
@@ -41,6 +42,7 @@ dotnet publish -r linux-x64 --self-contained          # single binary release
   - `next-wallpaper` — advance to next wallpaper in history/playlist
   - `previous-wallpaper` — go back in wallpaper history
   - `random` — alias of `--random` (picks from active playlist if running, else from library)
+  - `volume-up` / `volume-down` — adjust volume by 5 (clamped 0-100); persists to settings.json so the slider and next launch reflect the new value
 
 ## UI Structure
 
@@ -57,6 +59,7 @@ The app has three tabs:
 ### Library Tab
 - Grid of all downloaded wallpapers with circular badge in top-right: `+` to add to playlist, `−` to remove. Always visible.
 - Per-card buttons act on that card only (no multi-select fan-out)
+- "Import" button opens a file picker (`.mp4`/`.webm`/`.mov`/`.mkv`/`.avi`/`.gif`); a title-input modal then copies the video to the library and runs `ffmpeg` to extract a 320px-wide thumbnail at the 1-second mark. The `.id` sidecar holds `import:<source-path>` for re-import dedupe.
 - "Play All" button with a "Shuffle" toggle — plays the entire library; rotation behaviour follows the global Settings → PLAYLIST panel (timer or advance-on-video-end)
 - Per-card: Apply (sets as wallpaper) and Delete (removes from disk and library)
 - **Selection toolbar** docks above the playlist strip when ≥1 card is selected: "N selected", `Add to Playlist`, `Remove from Playlist`, `Delete`, `Cancel`
@@ -133,9 +136,11 @@ Plain HTTP with the Firefox User-Agent works — no browser automation needed.
 ### Wallpaper Engine local
 
 - Workshop path: `~/.local/share/Steam/steamapps/workshop/content/431960/`
-- Scan recursively for `*.mp4` files (exclude `scene.pkg`)
-- For each MP4, read `project.json` in the same directory to get `title`
-- Thumbnail: `preview.jpg` or any `.gif`/`.png`/`.jpg` in the same directory
+- Discovery is driven from each `<id>/project.json`:
+  - Skip when `type` isn't `"video"` (filters out `scene`, `web`, `application`)
+  - `file` field gives the actual video filename (any container mpv supports — `.mp4`, `.webm`, `.mov`, `.mkv`, …)
+  - `title` field becomes the wallpaper title
+- Thumbnail: `preview.jpg` or any `.gif`/`.png`/`.jpg`/`.jpeg` in the same directory
 
 ## File Naming & Library
 
