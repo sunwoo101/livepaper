@@ -120,15 +120,15 @@ public static class PlayerHelper
         KillTimerDaemon();
         try
         {
-            var exe = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
-            if (string.IsNullOrEmpty(exe)) return;
+            var selfArgs = GetSelfInvocationArgs();
+            if (selfArgs.Count == 0) return;
             var psi = new System.Diagnostics.ProcessStartInfo("setsid")
             {
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
             };
-            psi.ArgumentList.Add(exe);
+            foreach (var a in selfArgs) psi.ArgumentList.Add(a);
             psi.ArgumentList.Add("--timer-daemon");
             var proc = System.Diagnostics.Process.Start(psi);
             if (proc != null)
@@ -138,6 +138,38 @@ public static class PlayerHelper
             }
         }
         catch { }
+    }
+
+    // Build the argv prefix needed to re-invoke this same livepaper process
+    // (without args).
+    //   - Self-contained (AppImage, install.sh): the apphost binary and
+    //     entry assembly share a name (livepaper / livepaper.dll). The
+    //     apphost runs its bundled dll automatically; we just spawn it.
+    //   - Framework-dependent (AUR PKGBUILD): the process executable is the
+    //     dotnet host. We need to pass the entry assembly path so the
+    //     spawned host knows what to run.
+    public static List<string> GetSelfInvocationArgs()
+    {
+        var args = new List<string>();
+        var processPath = Environment.ProcessPath
+            ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+        if (string.IsNullOrEmpty(processPath)) return args;
+        args.Add(processPath);
+
+        var entryAsm = System.Reflection.Assembly.GetEntryAssembly()?.Location;
+        if (string.IsNullOrEmpty(entryAsm) || !entryAsm.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            return args;
+
+        // Apphost vs dotnet host: in a self-contained build the apphost is
+        // named after the assembly (livepaper ↔ livepaper.dll), so the names
+        // match and we don't need a separate dll arg. Framework-dependent
+        // builds run under `dotnet` whose name differs.
+        var procStem = Path.GetFileNameWithoutExtension(processPath);
+        var asmStem = Path.GetFileNameWithoutExtension(entryAsm);
+        if (!string.Equals(procStem, asmStem, StringComparison.OrdinalIgnoreCase))
+            args.Add(entryAsm);
+
+        return args;
     }
 
     public static void WriteTimerDaemonPid()

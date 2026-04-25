@@ -34,15 +34,15 @@ public static class AudioMonitor
         KillDetachedMonitor();
         try
         {
-            var exe = Process.GetCurrentProcess().MainModule?.FileName;
-            if (string.IsNullOrEmpty(exe)) return;
+            var selfArgs = PlayerHelper.GetSelfInvocationArgs();
+            if (selfArgs.Count == 0) return;
             var psi = new ProcessStartInfo("setsid")
             {
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
             };
-            psi.ArgumentList.Add(exe);
+            foreach (var a in selfArgs) psi.ArgumentList.Add(a);
             psi.ArgumentList.Add("--monitor");
             var proc = Process.Start(psi);
             if (proc != null)
