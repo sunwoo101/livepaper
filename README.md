@@ -43,12 +43,12 @@ livepaper --action=<action>   # control the running session (see Compositor keyb
 To restore your wallpaper on login, add to your compositor config:
 
 **Hyprland** (`hyprland.conf`):
-```
+```ini
 exec-once = livepaper --restore
 ```
 
 **Sway** (`config`):
-```
+```ini
 exec livepaper --restore
 ```
 
@@ -67,7 +67,7 @@ exec livepaper --restore
 The Settings tab provides ready-to-copy snippets for each.
 
 **Hyprland** example:
-```
+```ini
 bind = SUPER, M, exec, livepaper --action=toggle-mute
 bind = SUPER, N, exec, livepaper --action=next-wallpaper
 bind = SUPER, P, exec, livepaper --action=toggle-play

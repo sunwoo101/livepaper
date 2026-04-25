@@ -57,7 +57,7 @@ public partial class MainWindow : Window
             {
                 var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
                 if (clipboard != null)
-                    await clipboard.SetValueAsync(DataFormat.Text, text);
+                    await clipboard.SetTextAsync(text);
             };
             _boundVm = vm;
         }
