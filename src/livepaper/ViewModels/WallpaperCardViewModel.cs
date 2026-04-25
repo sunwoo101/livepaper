@@ -16,7 +16,7 @@ public partial class WallpaperCardViewModel : ViewModelBase
     [ObservableProperty] private bool _isSelected;
     [ObservableProperty] private bool _isInPlaylist;
 
-    public string CheckmarkText => IsInPlaylist ? "✓" : "+";
+    public string CheckmarkText => IsInPlaylist ? "−" : "+";
 
     partial void OnIsInPlaylistChanged(bool value) => OnPropertyChanged(nameof(CheckmarkText));
 

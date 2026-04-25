@@ -1,6 +1,5 @@
 using System;
 using System.ComponentModel;
-using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -16,9 +15,6 @@ namespace livepaper.Views;
 
 public partial class MainWindow : Window
 {
-    private static readonly FilePickerFileType JsonFileType =
-        new("JSON Playlist") { Patterns = ["*.json"] };
-
     // Playlist drag state
     private WallpaperCardViewModel? _dragCard;
     private bool _isDragging;
@@ -49,8 +45,6 @@ public partial class MainWindow : Window
         if (_boundVm != null)
         {
             _boundVm.PropertyChanged -= OnViewModelPropertyChanged;
-            _boundVm.OpenSaveDialog = null;
-            _boundVm.OpenLoadDialog = null;
             _boundVm.PickFolderDialog = null;
             _boundVm.CopyToClipboard = null;
             _boundVm = null;
@@ -58,8 +52,6 @@ public partial class MainWindow : Window
         if (DataContext is MainWindowViewModel vm)
         {
             vm.PropertyChanged += OnViewModelPropertyChanged;
-            vm.OpenSaveDialog = OpenSaveDialogAsync;
-            vm.OpenLoadDialog = OpenLoadDialogAsync;
             vm.PickFolderDialog = PickFolderDialogAsync;
             vm.CopyToClipboard = async text =>
             {
@@ -71,17 +63,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task<string?> OpenSaveDialogAsync()
-    {
-        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            Title = "Save Playlist",
-            SuggestedFileName = "playlist.json",
-            FileTypeChoices = [JsonFileType]
-        });
-        return file?.Path.LocalPath;
-    }
-
     private async Task<string?> PickFolderDialogAsync()
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
@@ -90,17 +71,6 @@ public partial class MainWindow : Window
             AllowMultiple = false
         });
         return folders.Count > 0 ? folders[0].Path.LocalPath : null;
-    }
-
-    private async Task<string?> OpenLoadDialogAsync()
-    {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Load Playlist",
-            FileTypeFilter = [JsonFileType],
-            AllowMultiple = false
-        });
-        return files.FirstOrDefault()?.Path.LocalPath;
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
