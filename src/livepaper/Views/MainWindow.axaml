@@ -1147,6 +1147,7 @@
                                 Command="{Binding CancelImportCommand}"/>
                         <Button Content="Import" Classes="accent"
                                 IsDefault="True"
+                                IsEnabled="{Binding !IsImporting}"
                                 Command="{Binding ConfirmImportCommand}"/>
                     </StackPanel>
                 </StackPanel>
