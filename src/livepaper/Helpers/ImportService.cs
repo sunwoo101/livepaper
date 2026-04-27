@@ -90,7 +90,7 @@ public static class ImportService
                 var tmpPath = $"{videoPath}.{Guid.NewGuid():N}.tmp.png";
                 try
                 {
-                    var ok = await RunFfmpegAsync("-y", "-i", sourcePath, tmpPath);
+                    var ok = await RunFfmpegAsync("-y", "-i", sourcePath, "-frames:v", "1", tmpPath);
                     if (!ok || !File.Exists(tmpPath)) throw new Exception("image conversion failed");
                     File.Move(tmpPath, videoPath, overwrite: true);
                 }
