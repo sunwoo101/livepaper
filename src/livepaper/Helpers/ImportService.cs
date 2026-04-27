@@ -163,6 +163,11 @@ public static class ImportService
         return await RunFfmpegAsync(args.ToArray()) && File.Exists(outputPath);
     }
 
+    // Conversion ffmpeg invocations run inside _importLock, so a stuck
+    // process would block every subsequent import. Cap the wait and kill
+    // on timeout instead of holding the lock indefinitely.
+    private static readonly TimeSpan FfmpegTimeout = TimeSpan.FromSeconds(60);
+
     private static async Task<bool> RunFfmpegAsync(params string[] args)
     {
         var psi = new ProcessStartInfo("ffmpeg")
@@ -179,7 +184,22 @@ public static class ImportService
             if (proc == null) return false;
             proc.BeginOutputReadLine();
             proc.BeginErrorReadLine();
-            await proc.WaitForExitAsync();
+
+            using var cts = new CancellationTokenSource(FfmpegTimeout);
+            try
+            {
+                await proc.WaitForExitAsync(cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                try { proc.Kill(entireProcessTree: true); } catch { }
+                // Reap the killed process so it doesn't linger as a zombie
+                // and so the using-block's Dispose runs against an exited
+                // proc. WaitForExitAsync without a token can't itself hang
+                // here because Kill is already in flight.
+                try { await proc.WaitForExitAsync(); } catch { }
+                return false;
+            }
             return proc.ExitCode == 0;
         }
         catch
