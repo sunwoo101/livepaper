@@ -40,6 +40,9 @@ public class AppSettings
         if (DemuxerMaxBytes > 0) parts.Add($"--demuxer-max-bytes={DemuxerMaxBytes}MiB");
         if (DemuxerMaxBackBytes > 0) parts.Add($"--demuxer-max-back-bytes={DemuxerMaxBackBytes}MiB");
         if (!string.IsNullOrWhiteSpace(HwDec)) parts.Add($"--hwdec={HwDec}");
+        // Fill the screen — crop overflow instead of letterboxing when the
+        // video aspect doesn't match the output.
+        parts.Add("--panscan=1.0");
         // Still images (.png/.jpg) would otherwise display for 1s and exit.
         // Has no effect on video sources.
         parts.Add("--image-display-duration=inf");
@@ -56,6 +59,7 @@ public class AppSettings
         if (DemuxerMaxBytes > 0) parts.Add($"--demuxer-max-bytes={DemuxerMaxBytes}MiB");
         if (DemuxerMaxBackBytes > 0) parts.Add($"--demuxer-max-back-bytes={DemuxerMaxBackBytes}MiB");
         if (!string.IsNullOrWhiteSpace(HwDec)) parts.Add($"--hwdec={HwDec}");
+        parts.Add("--panscan=1.0");
         // Image entries in advance-on-video-end playlists need a finite
         // display duration to advance; videos ignore this option.
         parts.Add("--image-display-duration=10");
