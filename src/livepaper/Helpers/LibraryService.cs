@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using livepaper.Models;
 
 namespace livepaper.Helpers;
@@ -29,26 +30,31 @@ public static class LibraryService
         if (!Directory.Exists(DownloadHelper.LibraryPath))
             return items;
 
-        foreach (var mp4 in Directory.GetFiles(DownloadHelper.LibraryPath, "*.mp4"))
+        // Videos use .mp4; imported still images use .png. Both conventions
+        // share the same .jpg-thumbnail / .id-sidecar layout.
+        var mediaFiles = Directory.GetFiles(DownloadHelper.LibraryPath, "*.mp4")
+            .Concat(Directory.GetFiles(DownloadHelper.LibraryPath, "*.png"));
+
+        foreach (var media in mediaFiles)
         {
             // Dangling symlink (target was deleted, e.g., WE wallpaper
             // uninstalled from Steam). Sweep it and its sibling .jpg/.id.
-            if (!File.Exists(mp4))
+            if (!File.Exists(media))
             {
-                if (IsSymlink(mp4)) CleanOrphan(mp4);
+                if (IsSymlink(media)) CleanOrphan(media);
                 continue;
             }
 
-            string title = Path.GetFileNameWithoutExtension(mp4);
-            string jpg = Path.ChangeExtension(mp4, ".jpg");
+            string title = Path.GetFileNameWithoutExtension(media);
+            string jpg = Path.ChangeExtension(media, ".jpg");
 
-            string idFile = Path.ChangeExtension(mp4, ".id");
+            string idFile = Path.ChangeExtension(media, ".id");
             string? sourceId = File.Exists(idFile) ? File.ReadAllText(idFile).Trim() : null;
 
             items.Add(new LibraryItem
             {
                 Title = title,
-                VideoPath = mp4,
+                VideoPath = media,
                 ThumbnailPath = File.Exists(jpg) ? jpg : null,
                 SourceId = sourceId
             });

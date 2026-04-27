@@ -105,17 +105,17 @@ public partial class MainWindow : Window
         return folders.Count > 0 ? folders[0].Path.LocalPath : null;
     }
 
-    private static readonly FilePickerFileType VideoFileType = new("Video files")
+    private static readonly FilePickerFileType WallpaperFileType = new("Wallpaper files")
     {
-        Patterns = ["*.mp4", "*.webm", "*.mov", "*.mkv", "*.avi", "*.gif"]
+        Patterns = ["*.mp4", "*.webm", "*.mov", "*.mkv", "*.avi", "*.gif", "*.png", "*.jpg", "*.jpeg", "*.webp"]
     };
 
     private async Task<string?> PickVideoDialogAsync()
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Import Video as Wallpaper",
-            FileTypeFilter = [VideoFileType],
+            Title = "Import Wallpaper",
+            FileTypeFilter = [WallpaperFileType],
             AllowMultiple = false
         });
         return files.Count > 0 ? files[0].Path.LocalPath : null;

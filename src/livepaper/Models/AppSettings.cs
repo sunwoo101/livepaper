@@ -40,6 +40,9 @@ public class AppSettings
         if (DemuxerMaxBytes > 0) parts.Add($"--demuxer-max-bytes={DemuxerMaxBytes}MiB");
         if (DemuxerMaxBackBytes > 0) parts.Add($"--demuxer-max-back-bytes={DemuxerMaxBackBytes}MiB");
         if (!string.IsNullOrWhiteSpace(HwDec)) parts.Add($"--hwdec={HwDec}");
+        // Still images (.png/.jpg) would otherwise display for 1s and exit.
+        // Has no effect on video sources.
+        parts.Add("--image-display-duration=inf");
         return string.Join(" ", parts);
     }
 
@@ -53,6 +56,9 @@ public class AppSettings
         if (DemuxerMaxBytes > 0) parts.Add($"--demuxer-max-bytes={DemuxerMaxBytes}MiB");
         if (DemuxerMaxBackBytes > 0) parts.Add($"--demuxer-max-back-bytes={DemuxerMaxBackBytes}MiB");
         if (!string.IsNullOrWhiteSpace(HwDec)) parts.Add($"--hwdec={HwDec}");
+        // Image entries in advance-on-video-end playlists need a finite
+        // display duration to advance; videos ignore this option.
+        parts.Add("--image-display-duration=10");
         return string.Join(" ", parts);
     }
 
