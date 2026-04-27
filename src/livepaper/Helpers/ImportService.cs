@@ -38,6 +38,7 @@ public static class ImportService
         // collides with the .jpg thumbnail naming convention.
         bool isImage = IsImage(sourcePath);
         string mediaExt = isImage ? ".png" : ".mp4";
+        string otherMediaExt = isImage ? ".mp4" : ".png";
 
         string safeTitle;
         string videoPath, thumbPath, idPath;
@@ -57,6 +58,16 @@ public static class ImportService
                 videoPath = Path.Combine(DownloadHelper.LibraryPath, safeTitle + mediaExt);
                 thumbPath = Path.Combine(DownloadHelper.LibraryPath, safeTitle + ".jpg");
                 idPath = Path.Combine(DownloadHelper.LibraryPath, safeTitle + ".id");
+
+                // Cross-type collision: a library entry of the opposite media
+                // type already owns this base name's .jpg / .id sidecars.
+                // Bump the counter so we don't clobber its thumbnail / sourceId.
+                var otherMediaPath = Path.Combine(DownloadHelper.LibraryPath, safeTitle + otherMediaExt);
+                if (File.Exists(otherMediaPath))
+                {
+                    if (attempt > 1000) return null;
+                    continue;
+                }
 
                 if (!File.Exists(videoPath)) break; // free name
 
