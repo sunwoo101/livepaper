@@ -227,6 +227,10 @@ public static class PlayerHelper
 
     public static void SpawnRestartDaemon()
     {
+        // Mirror the timer-daemon guard: if the GUI is alive it owns the
+        // in-process restart timer, so don't spawn a competing daemon.
+        if (IsGuiTimerAlive()) return;
+
         KillRestartDaemon();
         try
         {
