@@ -48,6 +48,17 @@ public static class PlayerHelper
         catch { return false; }
     }
 
+    private static bool IsTimedPlaylistPaused()
+    {
+        try
+        {
+            if (!File.Exists(TimedStatePath)) return false;
+            var state = JsonSerializer.Deserialize<TimedState>(File.ReadAllText(TimedStatePath));
+            return state?.TimerPaused ?? false;
+        }
+        catch { return false; }
+    }
+
     private static string IpcSocket => Path.Combine(
         Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") ?? Path.GetTempPath(),
         "livepaper", "mpv.sock");
@@ -282,7 +293,7 @@ public static class PlayerHelper
         var settings = SettingsService.Load();
         lock (_lock)
         {
-            if (_timedPaths != null && !_timedTimerStopped)
+            if (_timedPaths != null && !_timedTimerStopped && !_timedTimerPaused)
             {
                 WritePendingAction("restart");
                 return;
@@ -345,7 +356,7 @@ public static class PlayerHelper
                 int intervalMs = Math.Max(settings.RestartIntervalSeconds, 5) * 1000;
                 Thread.Sleep(intervalMs);
                 settings = SettingsService.Load();
-                if (IsTimedPlaylistActive())
+                if (IsTimedPlaylistActive() && !IsTimedPlaylistPaused())
                 {
                     WritePendingAction("restart");
                 }
