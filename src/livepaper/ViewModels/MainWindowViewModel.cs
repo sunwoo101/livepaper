@@ -496,6 +496,10 @@ public partial class MainWindowViewModel : ViewModelBase
         AutoMuteDelayMs = d.AutoMuteDelayMs;
         AutoUnmuteDelayMs = d.AutoUnmuteDelayMs;
         AutoMuteThresholdDb = (decimal)d.AutoMuteThresholdDb;
+        RestartIntervalSeconds = d.RestartIntervalSeconds;
+        _settings.RestartIntervalSeconds = d.RestartIntervalSeconds;
+        SettingsService.Save(_settings);
+        PlayerHelper.UpdateRestartTimer();
     }
 
     // ── Playlist ──────────────────────────────────────────────────────────

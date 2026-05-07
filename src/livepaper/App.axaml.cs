@@ -12,6 +12,8 @@ namespace livepaper;
 
 public partial class App : Application
 {
+    private PosixSignalRegistration? _sigtermRegistration;
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -36,10 +38,12 @@ public partial class App : Application
                 => Dispatcher.UIThread.Post(() => window.Close());
 
             Console.CancelKeyPress += (_, e) => { e.Cancel = true; RequestGracefulClose(); };
-            PosixSignalRegistration.Create(PosixSignal.SIGTERM, _ => RequestGracefulClose());
+            _sigtermRegistration = PosixSignalRegistration.Create(PosixSignal.SIGTERM, _ => RequestGracefulClose());
 
             window.Closed += (_, _) =>
             {
+                _sigtermRegistration?.Dispose();
+                _sigtermRegistration = null;
                 var settings = SettingsService.Load();
                 if (settings.AutoMute)
                     AudioMonitor.SpawnDetachedMonitor();

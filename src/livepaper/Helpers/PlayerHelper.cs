@@ -283,6 +283,9 @@ public static class PlayerHelper
                 WritePendingAction("restart");
                 return;
             }
+            // Guard against the race where Stop() runs while this callback
+            // was waiting on the lock: don't relaunch if nothing is playing.
+            if (!IsPlaying) return;
             var session = settings.LastSession;
             if (session == null || session.Paths.Count == 0) return;
             DoColdRestart(session, settings);
@@ -342,7 +345,7 @@ public static class PlayerHelper
                 {
                     WritePendingAction("restart");
                 }
-                else
+                else if (IsPlaying)
                 {
                     var session = settings.LastSession;
                     if (session != null && session.Paths.Count > 0)
