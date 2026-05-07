@@ -144,6 +144,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private decimal _autoMuteDelayMs;
     [ObservableProperty] private decimal _autoUnmuteDelayMs;
     [ObservableProperty] private decimal _autoMuteThresholdDb;
+    [ObservableProperty] private decimal _restartIntervalSeconds;
 
     // Playlist state
     [ObservableProperty] private ObservableCollection<WallpaperCardViewModel> _playlistItems = [];
@@ -197,6 +198,13 @@ public partial class MainWindowViewModel : ViewModelBase
         _settings.AutoMuteThresholdDb = (double)value;
         if (_settings.AutoMute) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb);
         SettingsService.Save(_settings);
+    }
+
+    partial void OnRestartIntervalSecondsChanged(decimal value)
+    {
+        _settings.RestartIntervalSeconds = (int)value;
+        SettingsService.Save(_settings);
+        PlayerHelper.UpdateRestartTimer();
     }
 
     partial void OnWallpaperEnginePathChanged(string value)
@@ -380,6 +388,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _autoMuteDelayMs = _settings.AutoMuteDelayMs;
         _autoUnmuteDelayMs = _settings.AutoUnmuteDelayMs;
         _autoMuteThresholdDb = (decimal)_settings.AutoMuteThresholdDb;
+        _restartIntervalSeconds = _settings.RestartIntervalSeconds;
         var gSecs = _settings.GlobalIntervalSeconds;
         _globalIntervalHours = gSecs / 3600;
         _globalIntervalMinutes = (gSecs % 3600) / 60;
@@ -431,6 +440,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 StatusMessage = $"Playing playlist ({s.Paths.Count} wallpapers, switching every {FormatInterval(s.TimedIntervalSeconds)})";
             else if (s.IsPlaylist)
                 StatusMessage = $"Playing playlist ({s.Paths.Count} wallpapers)";
+            PlayerHelper.UpdateRestartTimer();
         }
     }
 

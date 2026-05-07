@@ -15,6 +15,8 @@ public static class PlayerHelper
 {
     private static Process? _current;
     private static Timer? _playlistTimer;
+    private static Timer? _restartTimer;
+    private static bool _daemonMode = false;
     private static List<string>? _timedPaths;
     private static int _timedIndex;
     private static string _timedOptions = "";
@@ -57,6 +59,10 @@ public static class PlayerHelper
     private static string TimerDaemonPidPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
         ".config", "livepaper", "timer.pid");
+
+    private static string RestartDaemonPidPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".config", "livepaper", "restart.pid");
 
     private static string GuiTimerPidPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -188,6 +194,168 @@ public static class PlayerHelper
         try { File.Delete(TimerDaemonPidPath); } catch { }
     }
 
+    public static void KillRestartDaemon()
+    {
+        try
+        {
+            if (!File.Exists(RestartDaemonPidPath)) return;
+            var pidText = File.ReadAllText(RestartDaemonPidPath).Trim();
+            if (int.TryParse(pidText, out int pid))
+            {
+                try { System.Diagnostics.Process.GetProcessById(pid).Kill(); } catch { }
+            }
+            File.Delete(RestartDaemonPidPath);
+        }
+        catch { }
+    }
+
+    private static void WriteRestartDaemonPid()
+    {
+        try
+        {
+            var path = RestartDaemonPidPath;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, Environment.ProcessId.ToString());
+        }
+        catch { }
+    }
+
+    private static void DeleteRestartDaemonPid()
+    {
+        try { File.Delete(RestartDaemonPidPath); } catch { }
+    }
+
+    public static void SpawnRestartDaemon()
+    {
+        KillRestartDaemon();
+        try
+        {
+            var selfArgs = GetSelfInvocationArgs();
+            if (selfArgs.Count == 0) return;
+            var psi = new System.Diagnostics.ProcessStartInfo("setsid")
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            foreach (var a in selfArgs) psi.ArgumentList.Add(a);
+            psi.ArgumentList.Add("--restart-daemon");
+            var proc = System.Diagnostics.Process.Start(psi);
+            if (proc != null)
+            {
+                proc.BeginOutputReadLine();
+                proc.BeginErrorReadLine();
+            }
+        }
+        catch { }
+    }
+
+    // Start or restart the in-process restart timer based on current settings.
+    // No-op in daemon processes (they use their own loop or pending actions).
+    public static void UpdateRestartTimer()
+    {
+        _restartTimer?.Dispose();
+        _restartTimer = null;
+        if (_daemonMode) return;
+        var settings = SettingsService.Load();
+        int intervalMs = Math.Max(settings.RestartIntervalSeconds, 5) * 1000;
+        _restartTimer = new Timer(_ => RestartCurrent(), null,
+            TimeSpan.FromMilliseconds(intervalMs),
+            TimeSpan.FromMilliseconds(intervalMs));
+    }
+
+    private static void StopRestartTimer()
+    {
+        _restartTimer?.Dispose();
+        _restartTimer = null;
+    }
+
+    // In-process restart: re-launch the current wallpaper cold to free memory.
+    // For timed playlist sessions, delegates via pending action so the tick
+    // owner (which holds the in-memory path list) handles it.
+    private static void RestartCurrent()
+    {
+        var settings = SettingsService.Load();
+        lock (_lock)
+        {
+            if (_timedPaths != null && !_timedTimerStopped)
+            {
+                WritePendingAction("restart");
+                return;
+            }
+            var session = settings.LastSession;
+            if (session == null || session.Paths.Count == 0) return;
+            DoColdRestart(session, settings);
+        }
+    }
+
+    // Restart without advancing: used by the timed playlist tick when it
+    // consumes a "restart" pending action.
+    private static void RestartCurrentAndLaunch()
+    {
+        if (_history == null || _historyIndex < 0 || _historyIndex >= _history.Count) return;
+        var current = _history[_historyIndex];
+        KillCurrentProcess();
+        _current = Launch(_timedOptions, current);
+        // deliberately does not touch _timedRemainingMs — the countdown continues unaffected
+        SaveTimedState();
+    }
+
+    // Kill and cold-start mpvpaper with the given session. Must be called under _lock.
+    private static void DoColdRestart(LastSession session, AppSettings settings)
+    {
+        if (session.IsPlaylist && session.Paths.Count > 1)
+        {
+            var cacheDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".cache", "livepaper");
+            Directory.CreateDirectory(cacheDir);
+            var playlistPath = Path.Combine(cacheDir, "playlist.txt");
+            File.WriteAllLines(playlistPath, session.Paths.Take(session.Paths.Count - 1));
+            var shuffleFlag = session.Shuffle ? " --shuffle" : "";
+            var options = $"{settings.BuildMpvPlaylistOptions()} --playlist={playlistPath} --loop-playlist=inf{shuffleFlag}";
+            KillCurrentProcess();
+            _current = Launch(options, session.Paths[session.Paths.Count - 1]);
+        }
+        else
+        {
+            KillCurrentProcess();
+            _current = Launch(settings.BuildMpvOptions(), session.Paths[0]);
+        }
+    }
+
+    // Entry point for the --restart-daemon CLI flag. Blocks indefinitely,
+    // restarting mpvpaper every RestartIntervalSeconds. Killed when the GUI opens.
+    public static void RunRestartDaemon()
+    {
+        _daemonMode = true;
+        WriteRestartDaemonPid();
+        try
+        {
+            while (true)
+            {
+                var settings = SettingsService.Load();
+                int intervalMs = Math.Max(settings.RestartIntervalSeconds, 5) * 1000;
+                Thread.Sleep(intervalMs);
+                settings = SettingsService.Load();
+                if (IsTimedPlaylistActive())
+                {
+                    WritePendingAction("restart");
+                }
+                else
+                {
+                    var session = settings.LastSession;
+                    if (session != null && session.Paths.Count > 0)
+                        lock (_lock) { DoColdRestart(session, settings); }
+                }
+            }
+        }
+        finally
+        {
+            DeleteRestartDaemonPid();
+        }
+    }
+
     public static void FlushTimedState()
     {
         lock (_lock) { SaveTimedState(); }
@@ -292,6 +460,7 @@ public static class PlayerHelper
             ClearTimedStateFile();
             SwitchToFile(videoPath, mpvOptions);
         }
+        UpdateRestartTimer();
     }
 
     public static void ApplyPlaylist(IReadOnlyList<string> videoPaths, string mpvOptions, bool shuffle = false)
@@ -305,21 +474,23 @@ public static class PlayerHelper
             if (videoPaths.Count == 1)
             {
                 _current = Launch(mpvOptions, videoPaths[0]);
-                return;
             }
+            else
+            {
+                var cacheDir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    ".cache", "livepaper");
+                Directory.CreateDirectory(cacheDir);
 
-            var cacheDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".cache", "livepaper");
-            Directory.CreateDirectory(cacheDir);
+                var playlistPath = Path.Combine(cacheDir, "playlist.txt");
+                File.WriteAllLines(playlistPath, videoPaths.Take(videoPaths.Count - 1));
 
-            var playlistPath = Path.Combine(cacheDir, "playlist.txt");
-            File.WriteAllLines(playlistPath, videoPaths.Take(videoPaths.Count - 1));
-
-            var shuffleFlag = shuffle ? " --shuffle" : "";
-            var options = $"{mpvOptions} --playlist={playlistPath} --loop-playlist=inf{shuffleFlag}";
-            _current = Launch(options, videoPaths[videoPaths.Count - 1]);
+                var shuffleFlag = shuffle ? " --shuffle" : "";
+                var options = $"{mpvOptions} --playlist={playlistPath} --loop-playlist=inf{shuffleFlag}";
+                _current = Launch(options, videoPaths[videoPaths.Count - 1]);
+            }
         }
+        UpdateRestartTimer();
     }
 
     public static void ApplyTimedPlaylist(IReadOnlyList<string> paths, string mpvOptions, bool shuffle, int intervalSeconds)
@@ -347,12 +518,15 @@ public static class PlayerHelper
             if (ordered.Count > 1 && intervalSeconds > 0)
                 StartTimedTimer();
         }
+        UpdateRestartTimer();
     }
 
     public static bool RestoreTimedPlaylist()
     {
+        bool ok;
         lock (_lock)
         {
+            ok = false;
             if (!LoadTimedState()) return false;
             if (_timedPaths == null || _history == null || _timedPaths.Count == 0) return false;
 
@@ -366,14 +540,18 @@ public static class PlayerHelper
             if (_timedPaths.Count > 1 && _timedInterval.TotalSeconds > 0)
                 StartTimedTimer();
 
-            return true;
+            ok = true;
         }
+        if (ok) UpdateRestartTimer();
+        return ok;
     }
 
     public static bool ResumeTimedTimer()
     {
+        bool ok;
         lock (_lock)
         {
+            ok = false;
             if (!LoadTimedState()) return false;
             if (_timedPaths == null || _history == null || _timedPaths.Count == 0) return false;
 
@@ -384,8 +562,10 @@ public static class PlayerHelper
             if (_timedPaths.Count > 1 && _timedInterval.TotalSeconds > 0)
                 StartTimedTimer();
 
-            return true;
+            ok = true;
         }
+        if (ok) UpdateRestartTimer();
+        return ok;
     }
 
     private static void StartTimedTimer()
@@ -558,6 +738,7 @@ public static class PlayerHelper
             case "next": AdvanceAndLaunch(); break;
             case "prev": StepBackAndLaunch(); break;
             case "random": RandomAndLaunch(); break;
+            case "restart": RestartCurrentAndLaunch(); break;
         }
     }
 
@@ -636,6 +817,7 @@ public static class PlayerHelper
             KillAll();
             SignalTimerStop();
         }
+        KillRestartDaemon();
     }
 
     // Re-apply the last saved session: timed playlist, mpv-native playlist,
@@ -652,6 +834,8 @@ public static class PlayerHelper
             ApplyPlaylist(session.Paths, settings.BuildMpvPlaylistOptions(), session.Shuffle);
         else if (session.Paths.Count > 0)
             Apply(session.Paths[0], settings.BuildMpvOptions());
+
+        SpawnRestartDaemon();
     }
 
     // Pick a random video and apply it as a single wallpaper. If a timed
@@ -682,6 +866,7 @@ public static class PlayerHelper
     // until the timer is signalled to stop.
     public static void RunTimerDaemon()
     {
+        _daemonMode = true;
         var settings = SettingsService.Load();
         var session = settings.LastSession;
         if (session?.IsTimedPlaylist != true || session.Paths.Count == 0) return;
@@ -857,6 +1042,7 @@ public static class PlayerHelper
     {
         _playlistTimer?.Dispose();
         _playlistTimer = null;
+        StopRestartTimer();
         _timedPaths = null;
         _history = null;
         _historyIndex = -1;

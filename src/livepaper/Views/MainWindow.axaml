@@ -583,6 +583,25 @@
                                                    Width="30" TextAlignment="Right"
                                                    Margin="8,0,0,0"/>
                                     </Grid>
+                                    <StackPanel Spacing="4" Margin="0,4,0,0">
+                                        <Grid ColumnDefinitions="Auto,Auto,Auto">
+                                            <TextBlock Grid.Column="0" Text="Restart mpvpaper every"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{StaticResource TextColor}"
+                                                       Margin="0,0,12,0"/>
+                                            <NumericUpDown Grid.Column="1"
+                                                           Value="{Binding RestartIntervalSeconds}"
+                                                           Minimum="5" Maximum="3600" Increment="60"
+                                                           FormatString="0" Width="108"/>
+                                            <TextBlock Grid.Column="2" Text="s"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{StaticResource Subtext}"
+                                                       Margin="8,0,0,0"/>
+                                        </Grid>
+                                        <TextBlock Text="Kills and relaunches mpvpaper periodically to prevent memory leaks"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource Muted}"/>
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
 

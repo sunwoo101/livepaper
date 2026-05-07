@@ -1,6 +1,9 @@
+using System;
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using livepaper.Helpers;
 using livepaper.ViewModels;
 using livepaper.Views;
@@ -21,12 +24,19 @@ public partial class App : Application
             // Take over from any detached daemons
             AudioMonitor.KillDetachedMonitor();
             PlayerHelper.KillTimerDaemon();
+            PlayerHelper.KillRestartDaemon();
             PlayerHelper.WriteGuiTimerPid();
 
             var window = new MainWindow
             {
                 DataContext = new MainWindowViewModel(),
             };
+
+            void RequestGracefulClose()
+                => Dispatcher.UIThread.Post(() => window.Close());
+
+            Console.CancelKeyPress += (_, e) => { e.Cancel = true; RequestGracefulClose(); };
+            PosixSignalRegistration.Create(PosixSignal.SIGTERM, _ => RequestGracefulClose());
 
             window.Closed += (_, _) =>
             {
@@ -42,6 +52,8 @@ public partial class App : Application
                 // the user explicitly stopped.
                 if (settings.LastSession?.IsTimedPlaylist == true && PlayerHelper.IsTimedPlaylistActive())
                     PlayerHelper.SpawnTimerDaemon();
+                if (PlayerHelper.IsPlaying || PlayerHelper.IsTimedPlaylistActive())
+                    PlayerHelper.SpawnRestartDaemon();
             };
 
             desktop.MainWindow = window;

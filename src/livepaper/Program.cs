@@ -76,6 +76,12 @@ sealed class Program
             return;
         }
 
+        if (args.Contains("--restart-daemon"))
+        {
+            PlayerHelper.RunRestartDaemon();
+            return;
+        }
+
         if (args.Contains("--restore"))
         {
             PlayerHelper.Restore();
