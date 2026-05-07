@@ -293,9 +293,10 @@ public static class PlayerHelper
         var settings = SettingsService.Load();
         lock (_lock)
         {
-            if (_timedPaths != null && !_timedTimerStopped && !_timedTimerPaused)
+            if (_timedPaths != null && !_timedTimerStopped)
             {
-                WritePendingAction("restart");
+                if (!_timedTimerPaused)
+                    WritePendingAction("restart");
                 return;
             }
             // Guard against the race where Stop() runs while this callback
