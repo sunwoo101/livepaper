@@ -33,6 +33,7 @@ dotnet publish src/livepaper -r linux-x64 --self-contained    # single binary re
 - `--kill` — stops playback (kills mpvpaper and signals the timed playlist timer to stop), then exits.
 - `--monitor` *(internal)* — starts `AudioMonitor` using saved settings and blocks indefinitely. Spawned automatically as a detached process when the app closes with AutoMute enabled; killed when the app reopens.
 - `--timer-daemon` *(internal)* — owns the timed-playlist tick loop and blocks indefinitely. Spawned automatically as a detached process by `--restore` (timed-playlist case) and by the GUI on close; killed when the app reopens.
+- `--restart-daemon` *(internal)* — periodically kills and relaunches mpvpaper to work around a frame-buffer memory leak. Blocks indefinitely, sleeping `RestartIntervalSeconds` between each restart. Spawned by `--restore` and by the GUI on close whenever something is playing; killed by `--kill` and on app open.
 - `--action=<action>` — sends a command to the running session and exits. Intended for compositor keybinds. The Settings tab also exposes these as copy-paste keybind snippets, so the action set is duplicated with `--kill`/`--restore` for parity. Actions:
   - `toggle-mute` — toggle mpv mute
   - `toggle-pause` — pause/resume mpv playback AND the timed playlist timer (timer resumes with remaining time preserved)
@@ -194,6 +195,7 @@ mpvpaper -o "<mpv-options>" '*' /path/to/wallpaper.mp4
 - `HwDec`: `"auto"` | `"nvdec"` | `"vaapi"` | `"no"` (no cuda — deprecated on modern NVIDIA)
 - Auto-mute: `AutoMute` (bool, default false), `AutoMuteDelayMs` (default 200), `AutoUnmuteDelayMs` (default 2000), `AutoMuteThresholdDb` (default -70.0)
 - Global rotation: `GlobalIntervalSeconds` (default 1800), `GlobalAdvanceOnVideoEnd` (default false)
+- Restart: `RestartIntervalSeconds` (default 600, min 5, max 3600) — interval for the `--restart-daemon`; always active
 - Wallpaper Engine: `WallpaperEnginePath`, `WeCopyFiles`, `ResumeFromLast`
 - `LastSession`: tracks the last applied mode for `--restore`
 
@@ -216,7 +218,7 @@ mpvpaper -o "<mpv-options>" '*' /path/to/wallpaper.mp4
 
 **Tick state sync**: each tick calls `RefreshSignals()` (lighter than `LoadTimedState`) which only re-reads `TimerStopped` and `TimerPaused`. The owner's authoritative `_timedRemainingMs` / history are left alone.
 
-**Pending-action IPC** (`~/.config/livepaper/pending_action.txt`): atomic write+rename file used by CLI mutators when a timed playlist is active. Single string content: `next` / `prev` / `random`. The timer owner's tick consumes it (read+delete) and dispatches to `AdvanceAndLaunch` / `StepBackAndLaunch` / `RandomAndLaunch`. All three call `LaunchAndReset`, which kills the current mpvpaper, launches the new one, and resets `_timedRemainingMs` to the full interval. This makes `--random` skip-to-random preserve a full interval before normal progression resumes.
+**Pending-action IPC** (`~/.config/livepaper/pending_action.txt`): atomic write+rename file used by CLI mutators when a timed playlist is active. Single string content: `next` / `prev` / `random` / `restart`. The timer owner's tick consumes it (read+delete) and dispatches to `AdvanceAndLaunch` / `StepBackAndLaunch` / `RandomAndLaunch` / `RestartCurrentAndLaunch`. `restart` cold-restarts the current wallpaper without advancing and without resetting the countdown. All others call `LaunchAndReset`, which kills the current mpvpaper, launches the new one, and resets `_timedRemainingMs` to the full interval.
 
 **Stop/pause signals**: `TimedState` record includes `TimerStopped` and `TimerPaused` bool flags persisted to `timed_state.json`:
 - `Stop()` → `KillAll()` (kills mpvpaper) + `SignalTimerStop()` (read-modify-write `TimerStopped=true`); the daemon's stopped-branch in `Tick()` also calls `KillCurrentProcess()` to cover the kill→launch race where the daemon launched a new mpvpaper after CLI's `KillAll`
@@ -229,6 +231,12 @@ mpvpaper -o "<mpv-options>" '*' /path/to/wallpaper.mp4
 - `SpawnTimerDaemon()` bails if `IsGuiTimerAlive()` so `--restore` from a terminal can't spawn a competing daemon while the GUI is open.
 - GUI's window-close handler clears `gui_timer.pid` *before* calling `SpawnTimerDaemon`, allowing the handoff.
 
+**Restart daemon**: independent of timer ownership — always runs alongside whatever session is active.
+- PID written to `restart.pid`; killed on GUI open, on `Stop()`, and by `--kill`.
+- In-process: `UpdateRestartTimer()` starts a `System.Threading.Timer` (no-op when `_daemonMode = true` to prevent the timer daemon from starting a competing in-process timer).
+- For timed playlist sessions the restart timer writes `"restart"` to `pending_action.txt` instead of acting directly; the tick owner handles it via `RestartCurrentAndLaunch()` which preserves the countdown.
+- SIGINT (Ctrl+C) and SIGTERM are intercepted in `App.axaml.cs` and routed through `window.Close()` so the close handler always runs and daemons are always spawned.
+
 **`IsTimedPlaylistActive()`**: state-file check (`Paths.Count > 0 && !TimerStopped`) used by `toggle-play` and the CLI mutators to decide whether to delegate via `pending_action.txt` or fall back to local execution. Survives the brief kill→launch gap where mpvpaper is momentarily down.
 
 ## Distribution
@@ -237,6 +245,7 @@ mpvpaper -o "<mpv-options>" '*' /path/to/wallpaper.mp4
 - `install.sh` — builds a self-contained single binary (`PublishSingleFile=true`), installs to `~/.local/bin/`, drops desktop entry in `~/.local/share/applications/`, installs icon to `~/.local/share/icons/hicolor/512x512/apps/`
 - `build-appimage.sh` — same build, packages into `livepaper-x86_64.AppImage` using `appimagetool` (downloaded automatically if not in PATH)
 - `PKGBUILD` + `.SRCINFO` — AUR package `livepaper-git`, published at `aur.archlinux.org/packages/livepaper-git`
+- `monitor_ram.py` — Python GUI (matplotlib) that polls mpvpaper RSS every second and plots a live line graph. Requires `python-matplotlib` and `python-psutil` (`sudo pacman -S python-matplotlib python-psutil`).
 
 When updating the AUR package, regenerate `.SRCINFO` and push to the separate AUR git repo:
 ```bash
