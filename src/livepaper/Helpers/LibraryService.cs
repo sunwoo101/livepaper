@@ -7,6 +7,49 @@ namespace livepaper.Helpers;
 
 public static class LibraryService
 {
+    public static string TrashPath => Path.Combine(DownloadHelper.LibraryPath, ".trash");
+
+    public static void Trash(LibraryItem item, string batchDir)
+    {
+        Directory.CreateDirectory(batchDir);
+        MoveIfExists(item.VideoPath, batchDir);
+        if (item.ThumbnailPath != null) MoveIfExists(item.ThumbnailPath, batchDir);
+        foreach (var ext in new[] { ".jpg", ".png", ".gif", ".jpeg", ".id", ".crashed", ".whitelist", ".volume", ".speed" })
+            MoveIfExists(Path.ChangeExtension(item.VideoPath, ext), batchDir);
+    }
+
+    public static void RestoreBatch(string batchDir)
+    {
+        if (!Directory.Exists(batchDir)) return;
+        foreach (var file in Directory.GetFiles(batchDir))
+        {
+            var dest = Path.Combine(DownloadHelper.LibraryPath, Path.GetFileName(file));
+            if (!File.Exists(dest))
+                File.Move(file, dest);
+        }
+        try { Directory.Delete(batchDir); } catch { }
+    }
+
+    public static void PurgeBatch(string batchDir)
+    {
+        try { Directory.Delete(batchDir, recursive: true); } catch { }
+    }
+
+    public static void CleanTrash()
+    {
+        if (!Directory.Exists(TrashPath)) return;
+        foreach (var dir in Directory.GetDirectories(TrashPath))
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    private static void MoveIfExists(string src, string destDir)
+    {
+        if (File.Exists(src))
+            File.Move(src, Path.Combine(destDir, Path.GetFileName(src)));
+    }
+
     public static void DeleteAll()
     {
         if (!Directory.Exists(DownloadHelper.LibraryPath)) return;

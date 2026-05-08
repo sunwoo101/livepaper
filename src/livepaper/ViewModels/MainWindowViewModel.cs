@@ -116,6 +116,10 @@ public partial class MainWindowViewModel : ViewModelBase
     private void ConfirmClearLibrary()
     {
         if (!ClearLibraryReady) return;
+        foreach (var b in _undoBatches) LibraryService.PurgeBatch(b.BatchDir);
+        _undoBatches.Clear();
+        CanUndo = false;
+        PlayerHelper.Stop();
         LibraryService.DeleteAll();
         LibraryWallpapers.Clear();
         PlaylistItems.Clear();
@@ -356,6 +360,14 @@ public partial class MainWindowViewModel : ViewModelBase
     private int _lastSelectedIndex = -1;
     private int _lastBrowseSelectedIndex = -1;
 
+    private sealed class UndoBatch
+    {
+        public required string BatchDir;
+        public required List<(WallpaperCardViewModel Card, bool WasInPlaylist)> Items;
+    }
+    private readonly List<UndoBatch> _undoBatches = [];
+    [ObservableProperty] private bool _canUndo;
+
     public Func<Task<string?>>? PickFolderDialog { get; set; }
     public Func<Task<string?>>? PickVideoDialog { get; set; }
     public Func<string, Task>? CopyToClipboard { get; set; }
@@ -404,6 +416,8 @@ public partial class MainWindowViewModel : ViewModelBase
         _mpvOptionsPreview = _settings.BuildMpvOptions();
         ((WallpaperEngineService)Sources.First(s => s is WallpaperEngineService)).WorkshopPath = _settings.WallpaperEnginePath;
 #pragma warning restore MVVMTK0034
+
+        LibraryService.CleanTrash();
 
         if (_settings.AutoMute)
             AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb);
@@ -1151,19 +1165,24 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void DeleteCards(IReadOnlyList<WallpaperCardViewModel> targets)
     {
+        string batchDir = Path.Combine(LibraryService.TrashPath, Guid.NewGuid().ToString("N")[..8]);
+        var batchItems = new List<(WallpaperCardViewModel Card, bool WasInPlaylist)>();
         int deleted = 0;
+
         foreach (var target in targets)
         {
             if (target.LibraryItem == null) continue;
+            bool wasInPlaylist = target.IsInPlaylist;
             try
             {
-                LibraryService.Delete(target.LibraryItem);
+                LibraryService.Trash(target.LibraryItem, batchDir);
                 LibraryWallpapers.Remove(target);
-                if (target.IsInPlaylist)
+                if (wasInPlaylist)
                 {
                     PlaylistItems.Remove(target);
                     target.IsInPlaylist = false;
                 }
+                batchItems.Add((target, wasInPlaylist));
                 deleted++;
             }
             catch (Exception ex)
@@ -1173,7 +1192,38 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         if (deleted > 0)
-            StatusMessage = deleted > 1 ? $"Deleted {deleted} wallpapers" : $"Deleted: {targets[0].Title}";
+        {
+            _undoBatches.Add(new UndoBatch { BatchDir = batchDir, Items = batchItems });
+            CanUndo = true;
+            StatusMessage = deleted > 1 ? $"Deleted {deleted} wallpapers (Ctrl+Z to undo)" : $"Deleted: {batchItems[0].Card.Title} (Ctrl+Z to undo)";
+        }
+    }
+
+    [RelayCommand]
+    private void UndoDelete()
+    {
+        if (_undoBatches.Count == 0) return;
+        var batch = _undoBatches[^1];
+        LibraryService.RestoreBatch(batch.BatchDir);
+        _undoBatches.RemoveAt(_undoBatches.Count - 1);
+        CanUndo = _undoBatches.Count > 0;
+        foreach (var (card, wasInPlaylist) in batch.Items)
+        {
+            LibraryWallpapers.Add(card);
+            if (wasInPlaylist)
+            {
+                card.IsInPlaylist = true;
+                PlaylistItems.Add(card);
+            }
+        }
+        StatusMessage = batch.Items.Count > 1 ? $"Restored {batch.Items.Count} wallpapers" : $"Restored: {batch.Items[0].Card.Title}";
+    }
+
+    public void PurgeTrash()
+    {
+        foreach (var b in _undoBatches) LibraryService.PurgeBatch(b.BatchDir);
+        _undoBatches.Clear();
+        CanUndo = false;
     }
 
     [ObservableProperty] private bool _shuffleLibrary;

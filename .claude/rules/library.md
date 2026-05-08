@@ -13,3 +13,7 @@ Each entry: `{Title}.mp4` + `{Title}.jpg` (thumbnail) + `{Title}.id` (source URL
 The `.id` sidecar contains the source page URL. On download, if a wallpaper with the same source URL already exists, the download is skipped and the existing file applied.
 
 Config: `~/.config/livepaper/settings.json` — Cache: `~/.cache/livepaper/`
+
+### Soft delete
+
+Moves all sidecars to `.trash/<batchId>/`. Trash purged on window close or startup. **Ctrl+Z** restores last batch.

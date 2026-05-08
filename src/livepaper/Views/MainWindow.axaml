@@ -981,9 +981,53 @@
         <Border Grid.Row="1"
                 Background="{DynamicResource BgCrust}"
                 Padding="16,6">
-            <TextBlock Text="{Binding StatusMessage}"
-                       Foreground="{DynamicResource Muted}"
-                       FontSize="11"/>
+            <DockPanel>
+                <Button DockPanel.Dock="Right"
+                        IsVisible="{Binding CanUndo}"
+                        Command="{Binding UndoDeleteCommand}"
+                        Classes="ghost"
+                        Padding="10,2"
+                        FontSize="11"
+                        Margin="8,0,0,0">
+                    <Button.Styles>
+                        <Style Selector="Button[IsVisible=true]">
+                            <Style.Animations>
+                                <Animation Duration="0:0:1.8" FillMode="None">
+                                    <KeyFrame Cue="0%">
+                                        <Setter Property="BorderBrush" Value="Transparent"/>
+                                        <Setter Property="BorderThickness" Value="1.5"/>
+                                    </KeyFrame>
+                                    <KeyFrame Cue="18%">
+                                        <Setter Property="BorderBrush" Value="White"/>
+                                        <Setter Property="BorderThickness" Value="1.5"/>
+                                    </KeyFrame>
+                                    <KeyFrame Cue="36%">
+                                        <Setter Property="BorderBrush" Value="Transparent"/>
+                                        <Setter Property="BorderThickness" Value="1.5"/>
+                                    </KeyFrame>
+                                    <KeyFrame Cue="54%">
+                                        <Setter Property="BorderBrush" Value="White"/>
+                                        <Setter Property="BorderThickness" Value="1.5"/>
+                                    </KeyFrame>
+                                    <KeyFrame Cue="78%">
+                                        <Setter Property="BorderBrush" Value="Transparent"/>
+                                        <Setter Property="BorderThickness" Value="1.5"/>
+                                    </KeyFrame>
+                                    <KeyFrame Cue="100%">
+                                        <Setter Property="BorderBrush" Value="Transparent"/>
+                                        <Setter Property="BorderThickness" Value="1.5"/>
+                                    </KeyFrame>
+                                </Animation>
+                            </Style.Animations>
+                        </Style>
+                    </Button.Styles>
+                    Undo
+                </Button>
+                <TextBlock Text="{Binding StatusMessage}"
+                           Foreground="{DynamicResource Muted}"
+                           FontSize="11"
+                           VerticalAlignment="Center"/>
+            </DockPanel>
         </Border>
 
         <!-- Download progress modal -->

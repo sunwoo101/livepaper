@@ -37,6 +37,12 @@ public partial class MainWindow : Window
         this.AddHandler(PointerCaptureLostEvent, OnPointerCaptureLost, RoutingStrategies.Bubble, handledEventsToo: true);
     }
 
+    protected override void OnClosed(EventArgs e)
+    {
+        Vm?.PurgeTrash();
+        base.OnClosed(e);
+    }
+
     private MainWindowViewModel? Vm => DataContext as MainWindowViewModel;
     private MainWindowViewModel? _boundVm;
 
@@ -123,10 +129,24 @@ public partial class MainWindow : Window
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && Vm?.PreviewCard != null)
+        if (e.Key == Key.Escape)
         {
-            Vm.ClosePreviewCommand.Execute(null);
-            e.Handled = true;
+            if (Vm?.PreviewCard != null)
+            {
+                Vm.ClosePreviewCommand.Execute(null);
+                e.Handled = true;
+                return;
+            }
+            if (MainTabControl.SelectedIndex == 0 && Vm?.AnyBrowseSelected == true)
+            {
+                Vm.ClearBrowseSelectionCommand.Execute(null);
+                e.Handled = true;
+            }
+            else if (MainTabControl.SelectedIndex == 1 && Vm?.AnyLibrarySelected == true)
+            {
+                Vm.ClearLibrarySelectionCommand.Execute(null);
+                e.Handled = true;
+            }
             return;
         }
         if (e.Key == Key.A && e.KeyModifiers == KeyModifiers.Control)
@@ -135,6 +155,18 @@ public partial class MainWindow : Window
                 Vm?.SelectAllBrowseCommand.Execute(null);
             else if (MainTabControl.SelectedIndex == 1)
                 Vm?.SelectAllCommand.Execute(null);
+            e.Handled = true;
+        }
+        if (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is TextBox)
+            return;
+        if (e.Key == Key.Delete && MainTabControl.SelectedIndex == 1 && Vm?.AnyLibrarySelected == true)
+        {
+            Vm.DeleteSelectedCommand.Execute(null);
+            e.Handled = true;
+        }
+        if (e.Key == Key.Z && e.KeyModifiers == KeyModifiers.Control && Vm?.CanUndo == true)
+        {
+            Vm.UndoDeleteCommand.Execute(null);
             e.Handled = true;
         }
     }
