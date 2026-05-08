@@ -11,11 +11,18 @@ public class AppSettings
     public int DemuxerMaxBytes { get; set; } = 20;
     public int DemuxerMaxBackBytes { get; set; } = 5;
     public string HwDec { get; set; } = "auto";
+    public string VideoScale { get; set; } = "fit";
     private int _volume = 100;
     public int Volume
     {
         get => _volume;
         set => _volume = Math.Clamp(value, 0, 100);
+    }
+    private double _speed = 1.0;
+    public double Speed
+    {
+        get => _speed;
+        set => _speed = Math.Clamp(value, 0.1, 4.0);
     }
     public string WallpaperEnginePath { get; set; } = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -43,15 +50,12 @@ public class AppSettings
         if (Loop) parts.Add("loop");
         if (NoAudio) parts.Add("--no-audio");
         else parts.Add($"--volume={Volume}");
+        if (Speed != 1.0) parts.Add($"--speed={Speed.ToString("G", System.Globalization.CultureInfo.InvariantCulture)}");
         if (DisableCache) parts.Add("--cache=no");
         if (DemuxerMaxBytes > 0) parts.Add($"--demuxer-max-bytes={DemuxerMaxBytes}MiB");
         if (DemuxerMaxBackBytes > 0) parts.Add($"--demuxer-max-back-bytes={DemuxerMaxBackBytes}MiB");
         if (!string.IsNullOrWhiteSpace(HwDec)) parts.Add($"--hwdec={HwDec}");
-        // Fill the screen — crop overflow instead of letterboxing when the
-        // video aspect doesn't match the output.
-        parts.Add("--panscan=1.0");
-        // Still images (.png/.jpg) would otherwise display for 1s and exit.
-        // Has no effect on video sources.
+        if (VideoScale == "fill") parts.Add("--panscan=1.0");
         parts.Add("--image-display-duration=inf");
         return string.Join(" ", parts);
     }
@@ -62,13 +66,12 @@ public class AppSettings
         var parts = new List<string>();
         if (NoAudio) parts.Add("--no-audio");
         else parts.Add($"--volume={Volume}");
+        if (Speed != 1.0) parts.Add($"--speed={Speed.ToString("G", System.Globalization.CultureInfo.InvariantCulture)}");
         if (DisableCache) parts.Add("--cache=no");
         if (DemuxerMaxBytes > 0) parts.Add($"--demuxer-max-bytes={DemuxerMaxBytes}MiB");
         if (DemuxerMaxBackBytes > 0) parts.Add($"--demuxer-max-back-bytes={DemuxerMaxBackBytes}MiB");
         if (!string.IsNullOrWhiteSpace(HwDec)) parts.Add($"--hwdec={HwDec}");
-        parts.Add("--panscan=1.0");
-        // Image entries in advance-on-video-end playlists need a finite
-        // display duration to advance; videos ignore this option.
+        if (VideoScale == "fill") parts.Add("--panscan=1.0");
         parts.Add("--image-display-duration=10");
         return string.Join(" ", parts);
     }

@@ -21,6 +21,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public IReadOnlyList<AppTheme> Themes { get; } = ThemeService.All;
 
     [ObservableProperty] private AppTheme _selectedTheme = ThemeService.Default;
+    public string[] VideoScaleOptions { get; } = ["fit", "fill"];
 
     public List<IBgsProvider> Sources { get; } =
     [
@@ -141,7 +142,9 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private int _demuxerMaxBytes;
     [ObservableProperty] private int _demuxerMaxBackBytes;
     [ObservableProperty] private string _hwDec = "";
+    [ObservableProperty] private string _videoScale = "fit";
     [ObservableProperty] private int _volume;
+    [ObservableProperty] private double _speed;
     [ObservableProperty] private string _mpvOptionsPreview = "";
     [ObservableProperty] private bool _autoMute;
     [ObservableProperty] private decimal _autoMuteDelayMs;
@@ -369,6 +372,8 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly Models.AppSettings _settings;
     private CancellationTokenSource? _volumeSaveCts;
     private CancellationTokenSource? _playlistSaveCts;
+    private bool _isSyncingVolume;
+    private bool _isSyncingSpeed;
 
     private static string PlaylistStatePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -387,7 +392,9 @@ public partial class MainWindowViewModel : ViewModelBase
         _demuxerMaxBackBytes = _settings.DemuxerMaxBackBytes;
         _hwDec = _settings.HwDec;
         _selectedTheme = ThemeService.Find(_settings.Theme) ?? ThemeService.Default;
+        _videoScale = _settings.VideoScale;
         _volume = _settings.Volume;
+        _speed = _settings.Speed;
         _autoMute = _settings.AutoMute;
         _autoMuteDelayMs = _settings.AutoMuteDelayMs;
         _autoUnmuteDelayMs = _settings.AutoUnmuteDelayMs;
@@ -434,6 +441,18 @@ public partial class MainWindowViewModel : ViewModelBase
         PlayerHelper.OnTimedPlaylistStopped = () =>
             Dispatcher.UIThread.Post(() => StatusMessage = "");
 
+
+        PlayerHelper.OnWallpaperChanged = path => Dispatcher.UIThread.Post(() =>
+        {
+            foreach (var c in LibraryWallpapers) c.IsCurrentlyPlaying = false;
+            if (path != null)
+            {
+                var playing = LibraryWallpapers.FirstOrDefault(c => c.LibraryItem?.VideoPath == path);
+                if (playing != null) playing.IsCurrentlyPlaying = true;
+            }
+        });
+
+
         LoadLibrary();
         RestorePlaylistState();
 
@@ -465,9 +484,13 @@ public partial class MainWindowViewModel : ViewModelBase
         _settings.Theme = value.Name;
         SettingsService.Save(_settings);
     }
+    partial void OnVideoScaleChanged(string value) { Task.Run(() => PlayerHelper.SetVideoScale(value)); SaveAndRebuild(); }
     partial void OnVolumeChanged(int value)
     {
-        Task.Run(() => PlayerHelper.SetVolume(value));
+        if (LibraryWallpapers.FirstOrDefault(c => c.IsCurrentlyPlaying)?.VolumeOverride == null)
+            Task.Run(() => PlayerHelper.SetVolume(value));
+        foreach (var c in LibraryWallpapers)
+            c.UpdateGlobalVolume(value);
 
         _volumeSaveCts?.Cancel();
         _volumeSaveCts?.Dispose();
@@ -478,6 +501,16 @@ public partial class MainWindowViewModel : ViewModelBase
         }, TaskScheduler.Default);
     }
 
+    partial void OnSpeedChanged(double value)
+    {
+        if (LibraryWallpapers.FirstOrDefault(c => c.IsCurrentlyPlaying)?.SpeedOverride == null)
+            Task.Run(() => PlayerHelper.SetSpeed(value));
+        foreach (var c in LibraryWallpapers)
+            c.UpdateGlobalSpeed(value);
+        _settings.Speed = value;
+        SettingsService.Save(_settings);
+    }
+
     private void SaveAndRebuild()
     {
         _settings.Loop = Loop;
@@ -486,7 +519,9 @@ public partial class MainWindowViewModel : ViewModelBase
         _settings.DemuxerMaxBytes = DemuxerMaxBytes;
         _settings.DemuxerMaxBackBytes = DemuxerMaxBackBytes;
         _settings.HwDec = HwDec;
+        _settings.VideoScale = VideoScale;
         _settings.Volume = Volume;
+        _settings.Speed = Speed;
         MpvOptionsPreview = _settings.BuildMpvOptions();
         SettingsService.Save(_settings);
     }
@@ -501,7 +536,9 @@ public partial class MainWindowViewModel : ViewModelBase
         DemuxerMaxBytes = d.DemuxerMaxBytes;
         DemuxerMaxBackBytes = d.DemuxerMaxBackBytes;
         HwDec = d.HwDec;
+        VideoScale = d.VideoScale;
         Volume = d.Volume;
+        Speed = d.Speed;
         AutoMute = d.AutoMute;
         AutoMuteDelayMs = d.AutoMuteDelayMs;
         AutoUnmuteDelayMs = d.AutoUnmuteDelayMs;
@@ -1249,10 +1286,44 @@ public partial class MainWindowViewModel : ViewModelBase
             LibraryWallpapers.Add(MakeLibraryCard(item));
     }
 
+    private void SyncSelectedVolume(WallpaperCardViewModel source, int? volume)
+    {
+        if (_isSyncingVolume || !source.IsSelected) return;
+        _isSyncingVolume = true;
+        try
+        {
+            foreach (var c in LibraryWallpapers.Where(c => c.IsSelected && c != source))
+            {
+                if (volume.HasValue) c.SliderVolume = volume.Value;
+                else c.SyncVolumeToGlobalCommand.Execute(null);
+            }
+        }
+        finally { _isSyncingVolume = false; }
+    }
+
+    private void SyncSelectedSpeed(WallpaperCardViewModel source, double? speed)
+    {
+        if (_isSyncingSpeed || !source.IsSelected) return;
+        _isSyncingSpeed = true;
+        try
+        {
+            foreach (var c in LibraryWallpapers.Where(c => c.IsSelected && c != source))
+            {
+                if (speed.HasValue) c.SliderSpeed = speed.Value;
+                else c.SyncSpeedToGlobalCommand.Execute(null);
+            }
+        }
+        finally { _isSyncingSpeed = false; }
+    }
+
     private WallpaperCardViewModel MakeLibraryCard(LibraryItem item)
     {
         var card = new WallpaperCardViewModel(item);
         card.OnTogglePlaylist = c => ToggleInPlaylistCommand.Execute(c);
+        card.OnVolumeChanged = (c, v) => SyncSelectedVolume(c, v);
+        card.UpdateGlobalVolume(Volume);
+        card.OnSpeedChanged = (c, v) => SyncSelectedSpeed(c, v);
+        card.UpdateGlobalSpeed(Speed);
         return card;
     }
 

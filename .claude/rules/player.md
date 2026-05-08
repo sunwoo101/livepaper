@@ -15,6 +15,7 @@ mpvpaper -o "<mpv-options>" '*' /path/to/wallpaper.mp4
 `'*'` targets all Wayland outputs.
 
 **Playlist (Play All / Shuffle):**
+- Shuffle **pre-applied** to path array in `ApplyPlaylist()` (not via `--shuffle`) so order is known for `playlist_observer_paths.json`
 - Writes all-but-last paths to `~/.cache/livepaper/playlist.txt`; passes last as positional arg (N-1 in file + 1 positional = N total)
 - Adds `--playlist=<file> --loop-playlist=inf`; does NOT include `loop` (per-file) in playlist mode
 

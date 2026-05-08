@@ -21,6 +21,7 @@ The app has three tabs:
 - "Import": file picker (`.mp4`/`.webm`/`.mov`/`.mkv`/`.avi`/`.gif`); title modal copies to library, ffmpeg 320px thumbnail at 1s. `.id` holds `import:<source-path>`.
 - "Play All" + "Shuffle" toggle — follows global Settings → PLAYLIST
 - Per-card: Apply, Delete
+- **Preview modal** (click thumbnail): per-wallpaper volume slider (0–100, "↺ Global"); per-wallpaper speed slider (0.1–4×)
 - **Selection toolbar** above playlist strip when ≥1 selected: `Add to Playlist`, `Remove from Playlist`, `Delete`, `Cancel`
 - **Playlist strip** (always visible at bottom): horizontal small thumbnails; `−` badge; hover → dim + ▶ overlay; drag to reorder; click plays
   - ⚙ settings popup (Sequential/Shuffle; `Override global rotation settings` unlocks Interval and AdvanceOnVideoEnd)
@@ -28,11 +29,11 @@ The app has three tabs:
   - ▶ Play; auto-state saved to `~/.config/livepaper/playlist_state.json`
 
 ### Settings Tab
-- **Playback**: Loop, Mute audio, Disable cache, Volume (0–100, live IPC)
+- **Playback**: Loop, Mute audio, Disable cache, Volume (0–100, live IPC), Speed (0.1–4.0×, live IPC)
 - **Playlist (global rotation)**: Switch when video ends + Hours/Minutes/Seconds interval
 - **Auto-Mute**: threshold/delay knobs
 - **Memory**: Demuxer max bytes / back bytes (NumericUpDown, integer MiB)
-- **Rendering**: Hardware decoding (auto/nvdec/vaapi/no)
+- **Rendering**: Hardware decoding (auto/nvdec/vaapi/no), Video scale (fill/fit)
 - **Wallpaper Engine**: workshop folder picker, Copy files toggle
 - **Appearance**: Theme selector (31 built-in)
 - Live mpv options preview; Reset to Defaults; keybind snippets for `--action=…`
