@@ -26,6 +26,7 @@ public class AppSettings
     public int AutoMuteDelayMs { get; set; } = 200;
     public int AutoUnmuteDelayMs { get; set; } = 2000;
     public double AutoMuteThresholdDb { get; set; } = -70.0;
+    public bool AutoMuteOnlyIfMprisActive { get; set; } = false;
     public int GlobalIntervalSeconds { get; set; } = 1800;
     public bool GlobalAdvanceOnVideoEnd { get; set; } = true;
     public string Theme { get; set; } = "Catppuccin Mocha";

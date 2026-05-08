@@ -13,6 +13,11 @@ A live wallpaper manager for Wayland. Browse and download animated wallpapers fr
 - `wl-clipboard` (`wl-copy` keeps Settings-tab snippets on the clipboard after livepaper closes)
 - .NET 10 SDK (for building from source)
 
+### Optional
+
+- `playerctl` — required for the "Only mute if MPRIS media player is active" Auto-Mute option; without it the option has no effect
+
+
 ## Installation
 
 ### AUR

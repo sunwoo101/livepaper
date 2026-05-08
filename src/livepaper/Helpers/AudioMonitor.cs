@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -66,6 +67,7 @@ public static class AudioMonitor
     private static CancellationTokenSource? _cts;
     private static volatile bool _isMuted;
     private static int _aboveThresholdCount;
+    private static volatile bool _onlyIfMprisActive;
 
     // Entry point for the detached `livepaper --monitor` daemon process.
     public static void RunDaemon()
@@ -73,7 +75,7 @@ public static class AudioMonitor
         WriteMonitorPid();
         var settings = SettingsService.Load();
         if (settings.AutoMute)
-            Start(settings.AutoMuteDelayMs, settings.AutoUnmuteDelayMs, settings.AutoMuteThresholdDb);
+            Start(settings.AutoMuteDelayMs, settings.AutoUnmuteDelayMs, settings.AutoMuteThresholdDb, settings.AutoMuteOnlyIfMprisActive);
         Thread.Sleep(Timeout.Infinite);
     }
 
@@ -88,9 +90,10 @@ public static class AudioMonitor
         catch { }
     }
 
-    public static void Start(int muteDelayMs, int unmuteDelayMs, double thresholdDb)
+    public static void Start(int muteDelayMs, int unmuteDelayMs, double thresholdDb, bool onlyIfMprisActive = false)
     {
         Stop();
+        _onlyIfMprisActive = onlyIfMprisActive;
         _cts = new CancellationTokenSource();
         var ct = _cts.Token;
         Task.Run(() => WatchStreamsAsync(thresholdDb, ct));
@@ -280,8 +283,11 @@ public static class AudioMonitor
                 belowCount = 0;
                 if (aboveCount >= muteTicksNeeded)
                 {
-                    PlayerHelper.SetMute(true);
-                    _isMuted = true;
+                    if (!_onlyIfMprisActive || await IsAnyMprisPlayerActiveAsync(ct))
+                    {
+                        PlayerHelper.SetMute(true);
+                        _isMuted = true;
+                    }
                     aboveCount = 0;
                 }
             }
@@ -302,6 +308,40 @@ public static class AudioMonitor
                 belowCount = 0;
             }
         }
+    }
+
+    private static async Task<bool> IsAnyMprisPlayerActiveAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("playerctl", "status")
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+            };
+            using var proc = Process.Start(psi);
+            if (proc == null) return false;
+            using var cts = new CancellationTokenSource(500);
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, cts.Token);
+            try
+            {
+                var stdoutTask = proc.StandardOutput.ReadToEndAsync(linked.Token);
+                var stderrTask = proc.StandardError.ReadToEndAsync(linked.Token);
+                await proc.WaitForExitAsync(linked.Token);
+                var output = (await stdoutTask).Trim();
+                return output
+                    .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+                    .Any(line => string.Equals(line.Trim(), "Playing", StringComparison.OrdinalIgnoreCase));
+            }
+            catch (OperationCanceledException)
+            {
+                try { proc.Kill(); } catch { }
+                return false;
+            }
+        }
+        catch { return false; }
     }
 
     private static async Task<List<uint>> GetNonMpvStreamIdsAsync(CancellationToken ct)

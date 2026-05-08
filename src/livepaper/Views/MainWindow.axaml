@@ -656,6 +656,10 @@
                                     <CheckBox Content="Mute when system audio plays"
                                               IsChecked="{Binding AutoMute}"
                                               Foreground="{DynamicResource TextColor}"/>
+                                    <CheckBox Content="Only mute if MPRIS media player is active"
+                                              IsChecked="{Binding AutoMuteOnlyIfMprisActive}"
+                                              IsEnabled="{Binding AutoMute}"
+                                              Foreground="{DynamicResource TextColor}"/>
                                     <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,12,Auto,12,Auto"
                                           IsEnabled="{Binding AutoMute}">
                                         <TextBlock Grid.Row="0" Grid.Column="0"

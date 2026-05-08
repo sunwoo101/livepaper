@@ -24,13 +24,15 @@ mpvpaper -o "<mpv-options>" '*' /path/to/wallpaper.mp4
 
 `AudioMonitor.Start/Stop` called by ViewModel when `AutoMute` toggled or settings change. Three concurrent tasks:
 
-1. **`WatchStreamsAsync`** — runs `pactl subscribe`; maintains `ConcurrentDictionary<uint, CancellationTokenSource>` per-stream. On `'new'`: starts `parec`, verifies non-mpv after 100ms in background. On `'remove'`: cancels immediately. Initial reconciliation on startup. Filters mpv streams (`application.process.binary = "mpv"` / `application.name = "mpv"`).
+1. **`WatchStreamsAsync`** — runs `pactl subscribe`; maintains `ConcurrentDictionary<uint, CancellationTokenSource>` per-stream. On `'new'`: starts `parec`, verifies non-mpv after 100ms in background. On `'remove'`: cancels immediately. Initial reconciliation on startup. Filters mpv streams (`application.process.binary = "mpv"` / `application.name = "mpv"`) and corked streams.
 
 2. **`MonitorStreamAsync`** — `parec --monitor-stream=<id> --format=float32le --channels=1 --rate=8000 --raw`; reads 160-sample chunks (20ms), computes peak dBFS. `Interlocked.Increment/Decrement` on `_aboveThresholdCount`. `finally` always decrements if above threshold when cancelled.
 
 3. **`WatchMuteAsync`** — polls `_aboveThresholdCount` every 20ms. Counts consecutive ms above/below threshold; fires `PlayerHelper.SetMute` once delay exceeded.
 
 **Critical invariant**: always `--monitor-stream=<id>`. Never `@DEFAULT_MONITOR@` — captures livepaper's own audio → oscillation (mute → silence → unmute → audio detected → mute...).
+
+**SDL Application filter**: LWE registers as `application.name = "SDL Application"`. `GetNonMpvStreamIdsAsync()` skips SDL Application sink inputs — otherwise LWE audio triggers auto-mute of itself.
 
 **`_aboveThresholdCount` reset**: `Interlocked.Exchange(..., 0)` at top of `WatchStreamsAsync` (not in `Stop()`), so `finally` blocks from previous run can decrement safely without racing against new monitors.
 

@@ -30,7 +30,7 @@ The app has three tabs:
 ### Settings Tab
 - **Playback**: Loop, Mute audio, Disable cache, Volume (0–100, live IPC)
 - **Playlist (global rotation)**: Switch when video ends + Hours/Minutes/Seconds interval
-- **Auto-Mute**: threshold/delay knobs
+- **Auto-Mute**: threshold/delay knobs + "Only mute if MPRIS active" checkbox
 - **Memory**: Demuxer max bytes / back bytes (NumericUpDown, integer MiB)
 - **Rendering**: Hardware decoding (auto/nvdec/vaapi/no)
 - **Wallpaper Engine**: workshop folder picker, Copy files toggle

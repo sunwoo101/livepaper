@@ -148,6 +148,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private decimal _autoUnmuteDelayMs;
     [ObservableProperty] private decimal _autoMuteThresholdDb;
     [ObservableProperty] private decimal _restartIntervalSeconds;
+    [ObservableProperty] private bool _autoMuteOnlyIfMprisActive;
 
     // Playlist state
     [ObservableProperty] private ObservableCollection<WallpaperCardViewModel> _playlistItems = [];
@@ -177,7 +178,7 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnAutoMuteChanged(bool value)
     {
         _settings.AutoMute = value;
-        if (value) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb);
+        if (value) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb, _settings.AutoMuteOnlyIfMprisActive);
         else AudioMonitor.Stop();
         SettingsService.Save(_settings);
     }
@@ -185,21 +186,28 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnAutoMuteDelayMsChanged(decimal value)
     {
         _settings.AutoMuteDelayMs = (int)value;
-        if (_settings.AutoMute) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb);
+        if (_settings.AutoMute) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb, _settings.AutoMuteOnlyIfMprisActive);
         SettingsService.Save(_settings);
     }
 
     partial void OnAutoUnmuteDelayMsChanged(decimal value)
     {
         _settings.AutoUnmuteDelayMs = (int)value;
-        if (_settings.AutoMute) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb);
+        if (_settings.AutoMute) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb, _settings.AutoMuteOnlyIfMprisActive);
         SettingsService.Save(_settings);
     }
 
     partial void OnAutoMuteThresholdDbChanged(decimal value)
     {
         _settings.AutoMuteThresholdDb = (double)value;
-        if (_settings.AutoMute) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb);
+        if (_settings.AutoMute) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb, _settings.AutoMuteOnlyIfMprisActive);
+        SettingsService.Save(_settings);
+    }
+
+    partial void OnAutoMuteOnlyIfMprisActiveChanged(bool value)
+    {
+        _settings.AutoMuteOnlyIfMprisActive = value;
+        if (_settings.AutoMute) AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb, value);
         SettingsService.Save(_settings);
     }
 
@@ -393,6 +401,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _autoUnmuteDelayMs = _settings.AutoUnmuteDelayMs;
         _autoMuteThresholdDb = (decimal)_settings.AutoMuteThresholdDb;
         _restartIntervalSeconds = _settings.RestartIntervalSeconds;
+        _autoMuteOnlyIfMprisActive = _settings.AutoMuteOnlyIfMprisActive;
         var gSecs = _settings.GlobalIntervalSeconds;
         _globalIntervalHours = gSecs / 3600;
         _globalIntervalMinutes = (gSecs % 3600) / 60;
@@ -406,7 +415,7 @@ public partial class MainWindowViewModel : ViewModelBase
 #pragma warning restore MVVMTK0034
 
         if (_settings.AutoMute)
-            AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb);
+            AudioMonitor.Start(_settings.AutoMuteDelayMs, _settings.AutoUnmuteDelayMs, _settings.AutoMuteThresholdDb, _settings.AutoMuteOnlyIfMprisActive);
 
         BrowseWallpapers.CollectionChanged += (_, e) =>
         {
@@ -510,6 +519,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _settings.RestartIntervalSeconds = d.RestartIntervalSeconds;
         SettingsService.Save(_settings);
         PlayerHelper.UpdateRestartTimer();
+        AutoMuteOnlyIfMprisActive = d.AutoMuteOnlyIfMprisActive;
     }
 
     // ── Playlist ──────────────────────────────────────────────────────────
@@ -645,12 +655,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             // Pre-arranged order; pass shuffle=false so mpv plays the clicked card first.
             PlayerHelper.ApplyPlaylist(paths, _settings.BuildMpvPlaylistOptions(), shuffle: false);
-            _settings.LastSession = new LastSession
-            {
-                IsPlaylist = true,
-                Paths = allPaths,
-                Shuffle = PlaylistShuffle
-            };
+            _settings.LastSession = new LastSession { IsPlaylist = true, Paths = paths, Shuffle = PlaylistShuffle };
             SettingsService.Save(_settings);
             StatusMessage = $"Playing from: {card.Title}";
             return;
