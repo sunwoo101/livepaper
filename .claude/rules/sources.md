@@ -48,7 +48,8 @@ Plain HTTP with Firefox User-Agent works — no browser automation needed.
 
 - Workshop path: `~/.local/share/Steam/steamapps/workshop/content/431960/`
 - Discovery from each `<id>/project.json`:
-  - Skip when `type` isn't `"video"` (filters out `scene`, `web`, `application`)
-  - `file` field gives the actual video filename
+  - `type == "video"` → video wallpaper (`file` field = video filename)
+  - `type == "scene"` or `scene.pkg` present → scene (included only when `AllowScenes` is true)
+  - `type == "web"` / `"application"` → skipped always
   - `title` field becomes the wallpaper title
 - Thumbnail: `preview.jpg` or any `.gif`/`.png`/`.jpg`/`.jpeg` in the same directory

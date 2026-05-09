@@ -6,4 +6,6 @@ public class WallpaperResult
     public required string ThumbnailUrl { get; init; }
     public required string PageUrl { get; init; }
     public string? Resolution { get; init; }
+    public bool IsScene { get; init; }
+    public string? WorkshopId { get; init; }
 }

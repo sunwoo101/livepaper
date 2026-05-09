@@ -13,6 +13,10 @@ A live wallpaper manager for Wayland. Browse and download animated wallpapers fr
 - `wl-clipboard` (`wl-copy` keeps Settings-tab snippets on the clipboard after livepaper closes)
 - .NET 10 SDK (for building from source)
 
+### Optional
+
+- [linux-wallpaperengine](https://github.com/Almamu/linux-wallpaperengine) — required for Wallpaper Engine **scene** support (enable in Settings → Sources → "Allow scene support")
+
 ## Installation
 
 ### AUR
@@ -83,11 +87,7 @@ bind = SUPER, P, exec, livepaper --action=toggle-play
 - **motionbgs.com** — large collection of animated wallpapers
 - **moewalls.com** — anime-style animated wallpapers
 - **desktophut.com** — animated wallpapers
-- **Wallpaper Engine** — your local Wallpaper Engine library (Steam workshop, **Video type only**)
-
-  Filter by Video type in Wallpaper Engine to find compatible wallpapers:
-
-  ![Wallpaper Engine type filter](docs/we-video-type.png)
+- **Wallpaper Engine** — your local Wallpaper Engine library (Steam workshop). Video wallpapers work out of the box; **Scene** wallpapers require [linux-wallpaperengine](https://github.com/Almamu/linux-wallpaperengine) and must be enabled in Settings → Sources.
 
 ## Library
 

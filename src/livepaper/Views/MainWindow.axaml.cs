@@ -123,7 +123,11 @@ public partial class MainWindow : Window
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && Vm?.PreviewCard != null)
+        // Don't intercept Delete/Ctrl+Z when a text input control has focus
+        if (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is TextBox)
+            return;
+
+        if (e.Key == Key.Escape)
         {
             Vm.ClosePreviewCommand.Execute(null);
             e.Handled = true;

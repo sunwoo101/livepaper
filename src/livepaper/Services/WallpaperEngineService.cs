@@ -14,13 +14,15 @@ public class WallpaperEngineService : IBgsProvider
         ".local/share/Steam/steamapps/workshop/content/431960");
 
     public string WorkshopPath { get; set; } = DefaultWorkshopPath;
+    public bool AllowScenes { get; set; } = false;
 
     public string Name => "Wallpaper Engine (Local)";
     public bool SupportsSearch => false;
     public bool SupportsPagination => false;
+    public bool SupportsSorting => false;
 
     public Task<List<WallpaperResult>> GetLatestAsync(int page = 1)
-        => WallpaperEngineScraper.GetAllAsync(WorkshopPath);
+        => WallpaperEngineScraper.GetAllAsync(WorkshopPath, AllowScenes);
 
     public Task<List<WallpaperResult>> SearchAsync(string query, int page = 1)
         => Task.FromResult(new List<WallpaperResult>());
@@ -31,6 +33,8 @@ public class WallpaperEngineService : IBgsProvider
             Title = result.Title,
             PreviewUrl = result.ThumbnailUrl,
             DownloadUrl = result.PageUrl,
-            NeedsReferrer = false
+            NeedsReferrer = false,
+            IsScene = result.IsScene,
+            WorkshopId = result.WorkshopId
         });
 }

@@ -69,6 +69,14 @@ public static class ImportService
                     continue;
                 }
 
+                // Scene collision: a .scene entry owns this name's .jpg / .id sidecars.
+                var sceneMediaPath = Path.Combine(DownloadHelper.LibraryPath, safeTitle + ".scene");
+                if (File.Exists(sceneMediaPath))
+                {
+                    if (attempt > 1000) return null;
+                    continue;
+                }
+
                 if (!File.Exists(videoPath)) break; // free name
 
                 string existingId = "";

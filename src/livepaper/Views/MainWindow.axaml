@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:asyncImageLoader="clr-namespace:AsyncImageLoader;assembly=AsyncImageLoader.Avalonia"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
         mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="720"
         x:Class="livepaper.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
@@ -120,15 +121,29 @@
                                                 Background="{DynamicResource BgBase}">
                                             <Grid RowDefinitions="150,*,Auto">
 
-                                                <Button Grid.Row="0" Padding="0"
-                                                        Background="Transparent" BorderThickness="0"
-                                                        Command="{Binding $parent[Window].DataContext.OpenPreviewCommand}"
-                                                        CommandParameter="{Binding}">
-                                                    <asyncImageLoader:AdvancedImage
-                                                        Source="{Binding ThumbnailSource}"
-                                                        Stretch="UniformToFill"
-                                                        Width="210" Height="150"/>
-                                                </Button>
+                                                <Panel Grid.Row="0">
+                                                    <Button Padding="0"
+                                                            Background="Transparent" BorderThickness="0"
+                                                            Command="{Binding $parent[Window].DataContext.OpenPreviewCommand}"
+                                                            CommandParameter="{Binding}">
+                                                        <asyncImageLoader:AdvancedImage
+                                                            Source="{Binding ThumbnailSource}"
+                                                            Stretch="UniformToFill"
+                                                            Width="210" Height="150"/>
+                                                    </Button>
+                                                    <!-- SCENE badge -->
+                                                    <Border HorizontalAlignment="Left"
+                                                            VerticalAlignment="Top"
+                                                            Margin="5,5,0,0"
+                                                            IsVisible="{Binding IsScene}"
+                                                            Background="{DynamicResource Accent}"
+                                                            CornerRadius="4" Padding="4,2"
+                                                            IsHitTestVisible="False">
+                                                        <TextBlock Text="SCENE"
+                                                                   FontSize="9" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource AccentFg}"/>
+                                                    </Border>
+                                                </Panel>
 
                                                 <TextBlock Grid.Row="1"
                                                            Text="{Binding Title}"
@@ -387,7 +402,7 @@
                                                 </Border.ContextMenu>
                                                 <Grid RowDefinitions="150,*,Auto">
 
-                                                    <!-- Thumbnail + checkmark -->
+                                                    <!-- Thumbnail + badges -->
                                                     <Grid Grid.Row="0">
                                                         <Button Padding="0"
                                                                 Background="Transparent" BorderThickness="0"
@@ -398,6 +413,19 @@
                                                                 Stretch="UniformToFill"
                                                                 Width="210" Height="150"/>
                                                         </Button>
+
+                                                        <!-- SCENE badge -->
+                                                        <Border HorizontalAlignment="Left"
+                                                                VerticalAlignment="Top"
+                                                                Margin="5,5,0,0"
+                                                                IsVisible="{Binding IsScene}"
+                                                                Background="{StaticResource Accent}"
+                                                                CornerRadius="4" Padding="4,2"
+                                                                IsHitTestVisible="False">
+                                                            <TextBlock Text="SCENE"
+                                                                       FontSize="9" FontWeight="Bold"
+                                                                       Foreground="{StaticResource AccentFg}"/>
+                                                        </Border>
 
                                                         <!-- Checkmark badge -->
                                                         <Button HorizontalAlignment="Right"
@@ -416,13 +444,23 @@
                                                         </Button>
                                                     </Grid>
 
-                                                    <TextBlock Grid.Row="1"
-                                                               Text="{Binding Title}"
-                                                               TextWrapping="Wrap"
-                                                               Foreground="{DynamicResource TextColor}"
-                                                               Margin="10,8,10,4"
-                                                               FontSize="12"
-                                                               MaxLines="2"/>
+                                                    <Grid Grid.Row="1" Margin="10,8,10,4">
+                                                        <Grid ColumnDefinitions="Auto,*">
+                                                            <TextBlock Grid.Column="0"
+                                                                       Text="⚠ "
+                                                                       FontSize="12"
+                                                                       Foreground="{DynamicResource Danger}"
+                                                                       VerticalAlignment="Top"
+                                                                       IsVisible="{Binding HasCrashed}"
+                                                                       ToolTip.Tip="This scene crashed during playback"/>
+                                                            <TextBlock Grid.Column="1"
+                                                                       Text="{Binding Title}"
+                                                                       TextWrapping="Wrap"
+                                                                       Foreground="{DynamicResource TextColor}"
+                                                                       FontSize="12"
+                                                                       MaxLines="2"/>
+                                                        </Grid>
+                                                    </Grid>
 
                                                     <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="10,4,10,10">
                                                         <Button Grid.Column="0"
@@ -443,6 +481,14 @@
                                                     <Border Grid.RowSpan="3"
                                                             IsVisible="{Binding IsSelected}"
                                                             BorderBrush="{DynamicResource Accent}"
+                                                            BorderThickness="2.5"
+                                                            CornerRadius="10"
+                                                            IsHitTestVisible="False"/>
+
+                                                    <!-- Crash overlay -->
+                                                    <Border Grid.RowSpan="3"
+                                                            IsVisible="{Binding HasCrashed}"
+                                                            BorderBrush="{StaticResource Danger}"
                                                             BorderThickness="2.5"
                                                             CornerRadius="10"
                                                             IsHitTestVisible="False"/>
@@ -613,6 +659,9 @@
                                 <StackPanel Spacing="12">
                                     <CheckBox Content="Switch when video ends"
                                               IsChecked="{Binding GlobalAdvanceOnVideoEnd}"
+                                              Foreground="{DynamicResource TextColor}"/>
+                                    <CheckBox Content="Wait for video to end after interval fires before switching"
+                                              IsChecked="{Binding GlobalWaitForVideoEnd}"
                                               Foreground="{DynamicResource TextColor}"/>
                                     <StackPanel Spacing="6"
                                                 IsEnabled="{Binding !GlobalAdvanceOnVideoEnd}">
@@ -811,6 +860,102 @@
                                     <CheckBox Content="Copy files instead of symlinking"
                                               IsChecked="{Binding WeCopyFiles}"
                                               Foreground="{DynamicResource TextColor}"/>
+                                    <CheckBox Content="Allow scene support (experimental)"
+                                              IsChecked="{Binding AllowScenes}"
+                                              Foreground="{DynamicResource TextColor}"/>
+
+                                    <!-- Monitor settings (only when scenes enabled) -->
+                                    <StackPanel IsVisible="{Binding AllowScenes}" Spacing="8" Margin="0,4,0,0">
+                                        <TextBlock Text="Monitors"
+                                                   Foreground="{DynamicResource Subtext}"
+                                                   FontSize="12"/>
+                                        <Border Background="{DynamicResource BgCrust}"
+                                                CornerRadius="8" Padding="10,8">
+                                            <TextBlock TextWrapping="Wrap"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource Subtext}">
+                                                Input the names of the monitors you want scenes to be played on. On Hyprland, run <Run FontFamily="Monospace" Foreground="{DynamicResource Accent}">hyprctl monitors</Run> to list your monitors and their names. Find the equivalent command for your compositor.
+                                            </TextBlock>
+                                        </Border>
+
+                                        <!-- Monitor selector row -->
+                                        <Grid ColumnDefinitions="*,Auto,Auto">
+                                            <ComboBox Grid.Column="0"
+                                                      ItemsSource="{Binding LweMonitors}"
+                                                      SelectedItem="{Binding SelectedLweMonitor}"
+                                                      HorizontalAlignment="Stretch">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding DisplayName}"
+                                                                   Foreground="{DynamicResource TextColor}"/>
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <Button Grid.Column="1"
+                                                    Content="+"
+                                                    Classes="ghost"
+                                                    Margin="4,0,0,0"
+                                                    Command="{Binding StartAddMonitorCommand}"
+                                                    IsVisible="{Binding !IsAddingMonitor}"/>
+                                            <Button Grid.Column="2"
+                                                    Content="✕"
+                                                    Classes="ghost"
+                                                    Margin="4,0,0,0"
+                                                    Command="{Binding RemoveSelectedMonitorCommand}"
+                                                    IsVisible="{Binding SelectedLweMonitor, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                        </Grid>
+
+                                        <!-- Add monitor row -->
+                                        <Grid ColumnDefinitions="*,Auto,Auto"
+                                              IsVisible="{Binding IsAddingMonitor}">
+                                            <TextBox Grid.Column="0"
+                                                     Text="{Binding NewMonitorName}"
+                                                     PlaceholderText="e.g. DP-1"
+                                                     Foreground="{DynamicResource TextColor}"/>
+                                            <Button Grid.Column="1"
+                                                    Content="Add"
+                                                    Classes="accent"
+                                                    Margin="4,0,0,0"
+                                                    Command="{Binding ConfirmAddMonitorCommand}"/>
+                                            <Button Grid.Column="2"
+                                                    Content="Cancel"
+                                                    Classes="ghost"
+                                                    Margin="4,0,0,0"
+                                                    Command="{Binding CancelAddMonitorCommand}"/>
+                                        </Grid>
+
+                                        <!-- Per-monitor settings -->
+                                        <StackPanel IsVisible="{Binding SelectedLweMonitor, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                    Spacing="8"
+                                                    Margin="0,4,0,0">
+                                            <Grid ColumnDefinitions="Auto,*">
+                                                <TextBlock Grid.Column="0"
+                                                           Text="FPS"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextColor}"
+                                                           Margin="0,0,12,0"/>
+                                                <NumericUpDown Grid.Column="1"
+                                                              Value="{Binding SelectedMonitorFps}"
+                                                              Minimum="1"
+                                                              Increment="1"
+                                                              FormatString="0"
+                                                              Foreground="{DynamicResource TextColor}"/>
+                                            </Grid>
+                                            <CheckBox Content="Primary (better audio sync)"
+                                                      IsChecked="{Binding SelectedMonitorIsPrimary}"
+                                                      Foreground="{DynamicResource TextColor}"/>
+                                        </StackPanel>
+
+                                        <Grid ColumnDefinitions="*,Auto"
+                                              ToolTip.Tip="How long to wait after launching a scene before killing the previous wallpaper">
+                                            <TextBlock Grid.Column="0" Text="Transition delay (ms)"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextColor}"/>
+                                            <NumericUpDown Grid.Column="1" Value="{Binding SceneTransitionDelayMs}"
+                                                           Minimum="0" Maximum="5000" Increment="50"
+                                                           Width="120" FormatString="0"/>
+                                        </Grid>
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
 
@@ -1020,19 +1165,136 @@
             <Border Background="{DynamicResource BgBase}" CornerRadius="12" Padding="16"
                     MaxWidth="860" MaxHeight="600"
                     HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Grid RowDefinitions="*,Auto">
+                <Grid RowDefinitions="*,Auto,Auto,Auto,Auto">
 
                     <asyncImageLoader:AdvancedImage Grid.Row="0"
                         Source="{Binding PreviewCard.ThumbnailSource}"
                         Stretch="Uniform"
                         MaxWidth="828" MaxHeight="500"/>
 
-                    <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" Margin="0,12,0,0">
-                        <TextBlock Grid.Column="0"
-                                   Text="{Binding PreviewCard.Title}"
-                                   VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextColor}"
-                                   FontSize="13" TextTrimming="CharacterEllipsis"/>
+                    <!-- Crash warning -->
+                    <Border Grid.Row="1"
+                            IsVisible="{Binding PreviewCard.HasCrashed}"
+                            Background="#20f38ba8"
+                            CornerRadius="8" Padding="12,8" Margin="0,10,0,0">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Grid.Column="0" Spacing="2">
+                                <TextBlock Text="This scene crashed during playback"
+                                           Foreground="{DynamicResource Danger}"
+                                           FontSize="12" FontWeight="SemiBold"/>
+                                <TextBlock Text="Removed from your playlist. Whitelist it to keep it there even when it crashes."
+                                           Foreground="{DynamicResource Subtext}"
+                                           FontSize="11" TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <CheckBox Grid.Column="1"
+                                      Content="Whitelist"
+                                      IsChecked="{Binding PreviewCard.IsWhitelisted}"
+                                      Foreground="{DynamicResource TextColor}"
+                                      VerticalAlignment="Center"
+                                      Margin="12,0,0,0"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Per-wallpaper volume override -->
+                    <Border Grid.Row="2"
+                            IsVisible="{Binding PreviewCard.LibraryItem, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            Background="{DynamicResource BgCrust}"
+                            CornerRadius="8" Padding="12,8" Margin="0,10,0,0">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                            <TextBlock Grid.Column="0"
+                                       Text="Volume"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextColor}"
+                                       Width="56"/>
+                            <Slider Grid.Column="1"
+                                    Minimum="0" Maximum="100"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Value="{Binding PreviewCard.SliderVolume}"
+                                    VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2"
+                                       Text="{Binding PreviewCard.SliderVolume}"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource Subtext}"
+                                       Width="30" TextAlignment="Right"
+                                       Margin="8,0,0,0"/>
+                            <Button Grid.Column="3"
+                                    Content="↺ Global"
+                                    Classes="ghost"
+                                    FontSize="11"
+                                    Padding="10,6"
+                                    Margin="8,0,0,0"
+                                    IsVisible="{Binding !PreviewCard.IsVolumeSynced}"
+                                    ToolTip.Tip="Reset to global volume"
+                                    Command="{Binding PreviewCard.SyncToGlobalCommand}"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Per-wallpaper speed override -->
+                    <Border Grid.Row="3"
+                            IsVisible="{Binding PreviewCard.IsSpeedSliderVisible}"
+                            Background="{DynamicResource BgCrust}"
+                            CornerRadius="8" Padding="12,8" Margin="0,10,0,0">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                            <TextBlock Grid.Column="0"
+                                       Text="Speed"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextColor}"
+                                       Width="56"/>
+                            <Slider Grid.Column="1"
+                                    Minimum="0.1" Maximum="4"
+                                    TickFrequency="0.1"
+                                    IsSnapToTickEnabled="True"
+                                    Value="{Binding PreviewCard.SliderSpeed}"
+                                    VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2"
+                                       Text="{Binding PreviewCard.SliderSpeed, StringFormat='{}{0:F1}x'}"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource Subtext}"
+                                       Width="36" TextAlignment="Right"
+                                       Margin="8,0,0,0"/>
+                            <Button Grid.Column="3"
+                                    Content="↺ Global"
+                                    Classes="ghost"
+                                    FontSize="11"
+                                    Padding="10,6"
+                                    Margin="8,0,0,0"
+                                    IsVisible="{Binding !PreviewCard.IsSpeedSynced}"
+                                    ToolTip.Tip="Reset to global speed"
+                                    Command="{Binding PreviewCard.SyncSpeedToGlobalCommand}"/>
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto" Margin="0,12,0,0">
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBox Text="{Binding PreviewCard.Title}"
+                                     IsReadOnly="True"
+                                     Foreground="{DynamicResource TextColor}"
+                                     FontSize="13"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     Padding="0"/>
+                            <TextBlock Text="{Binding PreviewCard.VideoDuration}"
+                                       IsVisible="{Binding PreviewCard.VideoDuration, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                       Foreground="{DynamicResource Subtext}"
+                                       FontSize="11"
+                                       Margin="0,2,0,0"/>
+                            <StackPanel Orientation="Horizontal"
+                                        Spacing="6"
+                                        IsVisible="{Binding PreviewCard.WorkshopId, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                        Margin="0,2,0,0">
+                                <TextBlock Text="{Binding PreviewCard.WorkshopId, StringFormat='Workshop ID: {0}'}"
+                                           Foreground="{DynamicResource Subtext}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center"/>
+                                <Button Classes="ghost"
+                                        Width="18" Height="18" Padding="0"
+                                        ToolTip.Tip="Copy"
+                                        Command="{Binding CopyTextCommand}"
+                                        CommandParameter="{Binding PreviewCard.WorkshopId}">
+                                    <mi:MaterialIcon Kind="ContentCopy" Width="11" Height="11"/>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
                         <Button Grid.Column="1"
                                 Content="Download &amp; Apply"
                                 Classes="accent"

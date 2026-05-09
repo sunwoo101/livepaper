@@ -6,7 +6,13 @@ paths:
 
 ## Player
 
-`PlayerHelper` is the single entry point for mpvpaper. Kills all existing mpvpaper processes before starting a new one. stdout/stderr are redirected and drained so mpvpaper output never corrupts the terminal.
+`PlayerHelper` is the single entry point for mpvpaper. Kills all existing mpvpaper processes before starting a new one.
+
+**stdout/stderr redirection:**
+- **mpvpaper** (`Launch`), **timer daemon** (`SpawnTimerDaemon`), **restart daemon** (`SpawnRestartDaemon`): `RedirectStandardOutput/Error = true`, `BeginOutputReadLine/BeginErrorReadLine` called — required to drain pipes and prevent deadlock.
+- **LWE** (`SpawnLweProcesses`): `RedirectStandardOutput/Error = false` — do NOT add `BeginOutputReadLine/ErrorReadLine` here.
+
+**IPC readiness**: after spawning mpvpaper, `Launch` polls `TryQueryTimeRemaining()` up to 40 × 50 ms (2 s total). `TryQueryTimeRemaining` splits the raw socket buffer on `\n` and tries to parse each line as JSON — mpv sometimes sends multiple responses in one read.
 
 **Single video:**
 ```sh
@@ -17,8 +23,21 @@ mpvpaper -o "<mpv-options>" '*' /path/to/wallpaper.mp4
 **Playlist (Play All / Shuffle):**
 - Writes all-but-last paths to `~/.cache/livepaper/playlist.txt`; passes last as positional arg (N-1 in file + 1 positional = N total)
 - Adds `--playlist=<file> --loop-playlist=inf`; does NOT include `loop` (per-file) in playlist mode
+- If scenes present and `AllowScenes` is true, `ApplyPlaylist` upgrades to `ApplyTimedPlaylist` internally
 
-`PlayerHelper.SetMute(bool)` sends `set_property mute` via the mpv IPC socket.
+## Mute: user vs auto
+
+**`SetMute(bool)`** — auto-mute path. If `!mute && (_userMuted || UserMuteStatePath exists)`, returns without unmuting.
+
+**`SetUserMute(bool)`** — user action path. Writes/deletes `UserMuteStatePath`, updates `_userMuted`. `toggle-mute` CLI action uses this, not `cycle mute` IPC.
+
+**`AudioMonitor.IsMuted`** — exposed so `PlayerHelper` can read mute state on LWE launch.
+
+**`PlayerHelper.IsMuted`** — `public bool IsMuted => _isMuted` used by `Program.cs` for toggle-mute 3-way logic.
+
+**Scene→video mute**: `SwitchToFile` bakes `--mute=yes` into `launchOpts` if `_isMuted` is true. Always read `_isMuted` fresh inside the task — never capture into a `bool` local before `Task.Run`, value goes stale.
+
+**LWE orphan prevention**: `_prelaunchPidsToKill` (`private static string[]? _prelaunchPidsToKill`) holds LWE pids from an in-flight scene launch cancelled before the process started. `SwitchToFile` checks and kills these at entry. Also cleared in `TeardownTimer` and crash-detection block.
 
 ## Auto-Mute (`AudioMonitor`)
 

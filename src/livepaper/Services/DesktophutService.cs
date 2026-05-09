@@ -10,6 +10,7 @@ public class DesktophutService : IBgsProvider
     public string Name => "Desktophut";
     public bool SupportsSearch => true;
     public bool SupportsPagination => true;
+    public bool SupportsSorting => false;
 
     public Task<List<WallpaperResult>> GetLatestAsync(int page = 1)
         => DesktophutScraper.GetLatestAsync(page);

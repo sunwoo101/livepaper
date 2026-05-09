@@ -17,11 +17,17 @@ public class AppSettings
         get => _volume;
         set => _volume = Math.Clamp(value, 0, 100);
     }
+    public double Speed { get; set; } = 1.0;
     public string WallpaperEnginePath { get; set; } = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
         ".local/share/Steam/steamapps/workshop/content/431960");
     public bool WeCopyFiles { get; set; } = false;
     public bool ResumeFromLast { get; set; } = true;
+    public bool AllowScenes { get; set; } = false;
+    public bool LweSilent { get; set; } = false;
+    public int LweVolume { get; set; } = 100;
+    public List<LweMonitorSettings> LweMonitors { get; set; } = [];
+    public int SceneTransitionDelayMs { get; set; } = 1000;
     public bool AutoMute { get; set; } = false;
     public int AutoMuteDelayMs { get; set; } = 200;
     public int AutoUnmuteDelayMs { get; set; } = 2000;
@@ -35,6 +41,8 @@ public class AppSettings
         get => _restartIntervalSeconds;
         set => _restartIntervalSeconds = Math.Clamp(value, 5, 3600);
     }
+    public bool GlobalWaitForVideoEnd { get; set; } = false;
+    public int LibrarySortIndex { get; set; } = 5;
     public LastSession? LastSession { get; set; }
 
     public string BuildMpvOptions()

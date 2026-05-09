@@ -14,7 +14,8 @@ paths:
 - Auto-mute: `AutoMute` (false), `AutoMuteDelayMs` (200), `AutoUnmuteDelayMs` (2000), `AutoMuteThresholdDb` (-70.0)
 - Global rotation: `GlobalIntervalSeconds` (1800), `GlobalAdvanceOnVideoEnd` (false)
 - Restart: `RestartIntervalSeconds` (default 600, min 5, max 3600) — clamped in model setter; always active
-- Wallpaper Engine: `WallpaperEnginePath`, `WeCopyFiles`, `ResumeFromLast`
+- Wallpaper Engine: `WallpaperEnginePath`, `WeCopyFiles`, `ResumeFromLast`, `AllowScenes` (false)
+- LWE: `LweSilent` (false), `LweVolume` (100), `LweMonitors` (`{Name, Fps, IsPrimary}[]`), `SceneTransitionDelayMs` (1000)
 - UI: `Theme` ("Catppuccin Mocha")
 - `LastSession`: tracks last applied mode for `--restore`
 
@@ -48,3 +49,5 @@ paths:
 - Window-close clears `gui_timer.pid` *before* calling `SpawnTimerDaemon` (enables handoff).
 
 **`IsTimedPlaylistActive()`**: state-file check (`Paths.Count > 0 && !TimerStopped`). Survives brief kill→launch gap.
+
+**`DoVideoEndWait` retry threshold**: 30 iterations (3 s) before breaking on `null` remaining. 500 ms threshold caused premature scene switches.

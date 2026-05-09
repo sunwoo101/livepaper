@@ -10,6 +10,7 @@ public class PlaylistSettings
     public bool OverrideGlobalSettings { get; set; } = false;
     public int IntervalSeconds { get; set; } = 1800;
     public bool AdvanceOnVideoEnd { get; set; } = true;
+    public bool WaitForVideoEnd { get; set; } = false;
 }
 
 public class CustomPlaylist

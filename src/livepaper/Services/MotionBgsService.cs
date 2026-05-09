@@ -10,6 +10,7 @@ public class MotionBgsService : IBgsProvider
     public string Name => "MotionBgs";
     public bool SupportsSearch => true;
     public bool SupportsPagination => true;
+    public bool SupportsSorting => false;
 
     private string? _tagPath;    // non-null when last search redirected to a tag page
     private string _lastQuery = "";

@@ -10,17 +10,18 @@ The app has three tabs:
 
 ### Browse Tab
 - Source selector (pill-style): motionbgs.com, moewalls.com, Desktophut, Wallpaper Engine local
-- Grid of wallpaper cards (thumbnail + title); clicking thumbnail opens fullscreen preview modal
+- Grid of wallpaper cards (thumbnail + title + SCENE badge); clicking thumbnail opens fullscreen preview modal
 - Search box (enabled only for sources that support it)
 - Refresh button and loading bar (thin strip below top bar, no layout shift)
 - Per-card "Download & Apply" downloads + applies that card only
 - **Selection toolbar** docks at bottom when ≥1 selected (Shift/Ctrl-click, Ctrl+A): "N selected", `Download` (no apply), `Cancel`
 
 ### Library Tab
-- Grid of all downloaded wallpapers; circular badge top-right: `+`/`−` playlist toggle. Always visible.
+- Grid of all downloaded wallpapers; SCENE badge, ⚠ if `HasCrashed`; circular badge top-right: `+`/`−` playlist toggle. Always visible.
 - "Import": file picker (`.mp4`/`.webm`/`.mov`/`.mkv`/`.avi`/`.gif`); title modal copies to library, ffmpeg 320px thumbnail at 1s. `.id` holds `import:<source-path>`.
 - "Play All" + "Shuffle" toggle — follows global Settings → PLAYLIST
 - Per-card: Apply, Delete
+- **Preview modal** (click thumbnail): crash warning + whitelist toggle; title, workshop ID
 - **Selection toolbar** above playlist strip when ≥1 selected: `Add to Playlist`, `Remove from Playlist`, `Delete`, `Cancel`
 - **Playlist strip** (always visible at bottom): horizontal small thumbnails; `−` badge; hover → dim + ▶ overlay; drag to reorder; click plays
   - ⚙ settings popup (Sequential/Shuffle; `Override global rotation settings` unlocks Interval and AdvanceOnVideoEnd)
@@ -33,7 +34,7 @@ The app has three tabs:
 - **Auto-Mute**: threshold/delay knobs
 - **Memory**: Demuxer max bytes / back bytes (NumericUpDown, integer MiB)
 - **Rendering**: Hardware decoding (auto/nvdec/vaapi/no)
-- **Wallpaper Engine**: workshop folder picker, Copy files toggle
+- **Sources / Wallpaper Engine**: workshop folder picker, Copy files toggle (`WeCopyFiles`), "Allow scene support" checkbox; monitor list editor (name, FPS, primary toggle), scene transition delay slider
 - **Appearance**: Theme selector (31 built-in)
 - Live mpv options preview; Reset to Defaults; keybind snippets for `--action=…`
 

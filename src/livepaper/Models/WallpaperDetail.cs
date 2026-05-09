@@ -7,4 +7,6 @@ public class WallpaperDetail
     public required string DownloadUrl { get; init; }
     public bool NeedsReferrer { get; init; }
     public string? Referrer { get; init; }
+    public bool IsScene { get; init; }
+    public string? WorkshopId { get; init; }
 }
