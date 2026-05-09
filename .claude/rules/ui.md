@@ -23,13 +23,14 @@ The app has three tabs:
 - Per-card: Apply, Delete
 - **Selection toolbar** above playlist strip when ≥1 selected: `Add to Playlist`, `Remove from Playlist`, `Delete`, `Cancel`
 - **Playlist strip** (always visible at bottom): horizontal small thumbnails; `−` badge; hover → dim + ▶ overlay; drag to reorder; click plays
-  - ⚙ settings popup (Sequential/Shuffle; `Override global rotation settings` unlocks Interval and AdvanceOnVideoEnd)
+  - ⚙ settings popup (Sequential/Shuffle; `Override global rotation settings` unlocks Interval, AdvanceOnVideoEnd, WaitForVideoEnd)
   - 📂/💾 load/save named playlists → `~/.local/share/livepaper/playlists/<name>.json`
   - ▶ Play; auto-state saved to `~/.config/livepaper/playlist_state.json`
+- **Status bar**: playback info; animated undo button when `CanUndo`
 
 ### Settings Tab
 - **Playback**: Loop, Mute audio, Disable cache, Volume (0–100, live IPC)
-- **Playlist (global rotation)**: Switch when video ends + Hours/Minutes/Seconds interval
+- **Playlist (global rotation)**: Switch when video ends, Wait for video to end, Hours/Minutes/Seconds interval
 - **Auto-Mute**: threshold/delay knobs
 - **Memory**: Demuxer max bytes / back bytes (NumericUpDown, integer MiB)
 - **Rendering**: Hardware decoding (auto/nvdec/vaapi/no)

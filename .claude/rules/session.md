@@ -12,7 +12,7 @@ paths:
 - Memory: `DemuxerMaxBytes`, `DemuxerMaxBackBytes` (int, MiB)
 - `HwDec`: `"auto"` | `"nvdec"` | `"vaapi"` | `"no"`
 - Auto-mute: `AutoMute` (false), `AutoMuteDelayMs` (200), `AutoUnmuteDelayMs` (2000), `AutoMuteThresholdDb` (-70.0)
-- Global rotation: `GlobalIntervalSeconds` (1800), `GlobalAdvanceOnVideoEnd` (false)
+- Global rotation: `GlobalIntervalSeconds` (1800), `GlobalAdvanceOnVideoEnd` (false), `GlobalWaitForVideoEnd` (false)
 - Restart: `RestartIntervalSeconds` (default 600, min 5, max 3600) — clamped in model setter; always active
 - Wallpaper Engine: `WallpaperEnginePath`, `WeCopyFiles`, `ResumeFromLast`
 - UI: `Theme` ("Catppuccin Mocha")
@@ -20,19 +20,23 @@ paths:
 
 `CustomPlaylist` (JSON at `~/.config/livepaper/playlist_state.json` for in-progress; named files in `~/.local/share/livepaper/playlists/`):
 - `VideoPaths`, `Name` (nullable; only set after Save or Load)
-- `Settings.Order` (Sequential/Shuffle), `Settings.OverrideGlobalSettings`, `Settings.IntervalSeconds`, `Settings.AdvanceOnVideoEnd`
-- `IntervalSeconds`/`AdvanceOnVideoEnd` only used when `OverrideGlobalSettings` is true.
+- `Settings.Order` (Sequential/Shuffle), `Settings.OverrideGlobalSettings`, `Settings.IntervalSeconds`, `Settings.AdvanceOnVideoEnd`, `Settings.WaitForVideoEnd`
+- `IntervalSeconds`/`AdvanceOnVideoEnd`/`WaitForVideoEnd` only used when `OverrideGlobalSettings` is true.
 
 `LastSession` model fields:
 - `IsPlaylist` — Play All session; `IsTimedPlaylist` — timed playlist; `IsRandom` — `--random` session
 - `Paths` — path(s) used; `Shuffle` — shuffle was on
-- `TimedIntervalSeconds` — switching interval for timed playlist
+- `TimedIntervalSeconds`, `WaitForVideoEnd`, `AdvanceOnVideoEnd`, `OverrideGlobalSettings` — restores exact interval/mode rather than current globals
+
+**`RefreshLastSessionFromSettingsIfIdle()`** (ViewModel): syncs `LastSession` when rotation settings change while idle, so `--restore` picks up new interval/mode. Only updates if playlist paths match `s.Paths` (or `OverrideGlobalSettings` is false). Called from: `OnPlaylistWaitForVideoEndChanged`, `OnInterval*Changed`, `OnAdvanceOnVideoEndChanged`, `OnOverrideGlobalSettingsChanged`, `OnGlobal*Changed`.
 
 ## Timed Playlist
 
 `PlayerHelper.ApplyTimedPlaylist`: `System.Threading.Timer` ticks every 100ms. Decrement uses `DateTime.UtcNow` deltas (no jitter drift). On shuffle, `AdvanceToNext` re-randomizes at end of each cycle with do/while guarantee new cycle's first ≠ old cycle's last. State written to `~/.config/livepaper/timed_state.json` only on significant events (not every tick) — in-memory `_timedRemainingMs` is authoritative.
 
 **Tick state sync**: each tick calls `RefreshSignals()` (re-reads only `TimerStopped`/`TimerPaused`). Owner's `_timedRemainingMs` / history untouched.
+
+**`TimedState` record** fields: `TimerStopped`, `TimerPaused`, `AdvanceOnVideoEnd`, `WaitingForVideoEnd`. On restore, `LoadTimedState` restores `_advanceOnVideoEnd`/`_waitingForVideoEnd`, then `RearmAdvanceOnVideoEnd()` re-arms `DoVideoEndWait`. When `_waitingForVideoEnd=true`, `_historyIndex` is pre-fetched one step ahead — `RestoreTimedPlaylist` adjusts back by one before `SwitchToFile`, then calls `RearmAdvanceOnVideoEnd()`.
 
 **Pending-action IPC** (`~/.config/livepaper/pending_action.txt`): atomic write+rename. Content: `next` / `prev` / `random` / `restart`. Timer owner's tick consumes (read+delete) → `AdvanceAndLaunch` / `StepBackAndLaunch` / `RandomAndLaunch` / `RestartCurrentAndLaunch`. `restart` cold-restarts current wallpaper without advancing and without resetting the countdown. All others call `LaunchAndReset` → kills mpvpaper, launches new, resets `_timedRemainingMs` to full interval.
 

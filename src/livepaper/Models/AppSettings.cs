@@ -35,6 +35,8 @@ public class AppSettings
         get => _restartIntervalSeconds;
         set => _restartIntervalSeconds = Math.Clamp(value, 5, 3600);
     }
+    public bool GlobalWaitForVideoEnd { get; set; } = false;
+    public bool PlaylistWaitForVideoEnd { get; set; } = false;
     public LastSession? LastSession { get; set; }
 
     public string BuildMpvOptions()

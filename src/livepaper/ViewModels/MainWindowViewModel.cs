@@ -148,6 +148,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private decimal _autoUnmuteDelayMs;
     [ObservableProperty] private decimal _autoMuteThresholdDb;
     [ObservableProperty] private decimal _restartIntervalSeconds;
+    [ObservableProperty] private double _speed = 1.0;
 
     // Playlist state
     [ObservableProperty] private ObservableCollection<WallpaperCardViewModel> _playlistItems = [];
@@ -167,12 +168,41 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private decimal _intervalSeconds = 0;
     [ObservableProperty] private bool _advanceOnVideoEnd = true;
     [ObservableProperty] private bool _overrideGlobalSettings;
+    [ObservableProperty] private bool _playlistWaitForVideoEnd;
 
     // Global rotation settings (Settings tab)
     [ObservableProperty] private decimal _globalIntervalHours;
     [ObservableProperty] private decimal _globalIntervalMinutes;
     [ObservableProperty] private decimal _globalIntervalSeconds;
     [ObservableProperty] private bool _globalAdvanceOnVideoEnd = true;
+    [ObservableProperty] private bool _globalWaitForVideoEnd;
+
+    // Display proxies: show global values when override is off, per-playlist when on
+    public decimal DisplayIntervalHours
+    {
+        get => OverrideGlobalSettings ? IntervalHours : GlobalIntervalHours;
+        set { if (OverrideGlobalSettings) IntervalHours = value; }
+    }
+    public decimal DisplayIntervalMinutes
+    {
+        get => OverrideGlobalSettings ? IntervalMinutes : GlobalIntervalMinutes;
+        set { if (OverrideGlobalSettings) IntervalMinutes = value; }
+    }
+    public decimal DisplayIntervalSeconds
+    {
+        get => OverrideGlobalSettings ? IntervalSeconds : GlobalIntervalSeconds;
+        set { if (OverrideGlobalSettings) IntervalSeconds = value; }
+    }
+    public bool DisplayAdvanceOnVideoEnd
+    {
+        get => OverrideGlobalSettings ? AdvanceOnVideoEnd : GlobalAdvanceOnVideoEnd;
+        set { if (OverrideGlobalSettings) AdvanceOnVideoEnd = value; }
+    }
+    public bool DisplayWaitForVideoEnd
+    {
+        get => OverrideGlobalSettings ? PlaylistWaitForVideoEnd : GlobalWaitForVideoEnd;
+        set { if (OverrideGlobalSettings) PlaylistWaitForVideoEnd = value; }
+    }
 
     partial void OnAutoMuteChanged(bool value)
     {
@@ -309,21 +339,46 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    partial void OnPlaylistShuffleChanged(bool value) { SavePlaylistStateDebounced(); ApplyTimedSettingsIfRunning(); }
-    partial void OnIntervalHoursChanged(decimal value) { SavePlaylistStateDebounced(); if (OverrideGlobalSettings) ApplyTimedSettingsIfRunning(); }
-    partial void OnIntervalMinutesChanged(decimal value) { SavePlaylistStateDebounced(); if (OverrideGlobalSettings) ApplyTimedSettingsIfRunning(); }
-    partial void OnIntervalSecondsChanged(decimal value) { SavePlaylistStateDebounced(); if (OverrideGlobalSettings) ApplyTimedSettingsIfRunning(); }
-    partial void OnAdvanceOnVideoEndChanged(bool value) => SavePlaylistStateDebounced();
-    partial void OnOverrideGlobalSettingsChanged(bool value) { SavePlaylistStateDebounced(); ApplyTimedSettingsIfRunning(); }
-    partial void OnGlobalIntervalHoursChanged(decimal value) { SaveGlobalRotationSettings(); if (!OverrideGlobalSettings) ApplyTimedSettingsIfRunning(); }
-    partial void OnGlobalIntervalMinutesChanged(decimal value) { SaveGlobalRotationSettings(); if (!OverrideGlobalSettings) ApplyTimedSettingsIfRunning(); }
-    partial void OnGlobalIntervalSecondsChanged(decimal value) { SaveGlobalRotationSettings(); if (!OverrideGlobalSettings) ApplyTimedSettingsIfRunning(); }
-    partial void OnGlobalAdvanceOnVideoEndChanged(bool value) => SaveGlobalRotationSettings();
+    partial void OnPlaylistShuffleChanged(bool value)
+    {
+        var s = _settings.LastSession;
+        if (s != null && PlayerHelper.IsPlaying && IsRunningCustomPlaylist(s.Paths))
+        {
+            s.Shuffle = value;
+            SettingsService.Save(_settings);
+        }
+        SavePlaylistStateDebounced();
+        ApplyShuffleOrderIfRunning(value);
+        RefreshPlayingStatus();
+    }
+    partial void OnPlaylistWaitForVideoEndChanged(bool value) { if (value) AdvanceOnVideoEnd = false; _settings.PlaylistWaitForVideoEnd = value; SettingsService.Save(_settings); if (OverrideGlobalSettings) OnPropertyChanged(nameof(DisplayWaitForVideoEnd)); ApplyEffectivePlaylistSettingsIfRunning(); RefreshLastSessionFromSettingsIfIdle(); RefreshPlayingStatus(); }
+    partial void OnIntervalHoursChanged(decimal value) { SavePlaylistStateDebounced(); if (OverrideGlobalSettings) { ApplyEffectivePlaylistSettingsIfRunning(); OnPropertyChanged(nameof(DisplayIntervalHours)); } RefreshLastSessionFromSettingsIfIdle(); RefreshPlayingStatus(); }
+    partial void OnIntervalMinutesChanged(decimal value) { SavePlaylistStateDebounced(); if (OverrideGlobalSettings) { ApplyEffectivePlaylistSettingsIfRunning(); OnPropertyChanged(nameof(DisplayIntervalMinutes)); } RefreshLastSessionFromSettingsIfIdle(); RefreshPlayingStatus(); }
+    partial void OnIntervalSecondsChanged(decimal value) { SavePlaylistStateDebounced(); if (OverrideGlobalSettings) { ApplyEffectivePlaylistSettingsIfRunning(); OnPropertyChanged(nameof(DisplayIntervalSeconds)); } RefreshLastSessionFromSettingsIfIdle(); RefreshPlayingStatus(); }
+    partial void OnAdvanceOnVideoEndChanged(bool value) { if (value) PlaylistWaitForVideoEnd = false; SavePlaylistStateDebounced(); if (OverrideGlobalSettings) { OnPropertyChanged(nameof(DisplayAdvanceOnVideoEnd)); ApplyEffectivePlaylistSettingsIfRunning(); } RefreshLastSessionFromSettingsIfIdle(); RefreshPlayingStatus(); }
+    partial void OnOverrideGlobalSettingsChanged(bool value)
+    {
+        SavePlaylistStateDebounced();
+        ApplyEffectivePlaylistSettingsIfRunning();
+        RefreshLastSessionFromSettingsIfIdle();
+        OnPropertyChanged(nameof(DisplayIntervalHours));
+        OnPropertyChanged(nameof(DisplayIntervalMinutes));
+        OnPropertyChanged(nameof(DisplayIntervalSeconds));
+        OnPropertyChanged(nameof(DisplayAdvanceOnVideoEnd));
+        OnPropertyChanged(nameof(DisplayWaitForVideoEnd));
+        RefreshPlayingStatus();
+    }
+    partial void OnGlobalIntervalHoursChanged(decimal value) { SaveGlobalRotationSettings(); if (!OverrideGlobalSettings) { ApplyEffectivePlaylistSettingsIfRunning(); OnPropertyChanged(nameof(DisplayIntervalHours)); } RefreshLastSessionFromSettingsIfIdle(); RefreshPlayingStatus(); }
+    partial void OnGlobalIntervalMinutesChanged(decimal value) { SaveGlobalRotationSettings(); if (!OverrideGlobalSettings) { ApplyEffectivePlaylistSettingsIfRunning(); OnPropertyChanged(nameof(DisplayIntervalMinutes)); } RefreshLastSessionFromSettingsIfIdle(); RefreshPlayingStatus(); }
+    partial void OnGlobalIntervalSecondsChanged(decimal value) { SaveGlobalRotationSettings(); if (!OverrideGlobalSettings) { ApplyEffectivePlaylistSettingsIfRunning(); OnPropertyChanged(nameof(DisplayIntervalSeconds)); } RefreshLastSessionFromSettingsIfIdle(); RefreshPlayingStatus(); }
+    partial void OnGlobalAdvanceOnVideoEndChanged(bool value) { if (value) GlobalWaitForVideoEnd = false; SaveGlobalRotationSettings(); if (!OverrideGlobalSettings) { OnPropertyChanged(nameof(DisplayAdvanceOnVideoEnd)); ApplyEffectivePlaylistSettingsIfRunning(); } RefreshLastSessionFromSettingsIfIdle(); RefreshPlayingStatus(); }
+    partial void OnGlobalWaitForVideoEndChanged(bool value) { if (value) GlobalAdvanceOnVideoEnd = false; SaveGlobalRotationSettings(); if (!OverrideGlobalSettings) { OnPropertyChanged(nameof(DisplayWaitForVideoEnd)); ApplyEffectivePlaylistSettingsIfRunning(); } RefreshLastSessionFromSettingsIfIdle(); RefreshPlayingStatus(); }
 
     private void SaveGlobalRotationSettings()
     {
         _settings.GlobalIntervalSeconds = (int)GlobalIntervalHours * 3600 + (int)GlobalIntervalMinutes * 60 + (int)GlobalIntervalSeconds;
         _settings.GlobalAdvanceOnVideoEnd = GlobalAdvanceOnVideoEnd;
+        _settings.GlobalWaitForVideoEnd = GlobalWaitForVideoEnd;
         SettingsService.Save(_settings);
     }
 
@@ -344,13 +399,109 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private bool GetEffectiveAdvanceOnVideoEnd() =>
         OverrideGlobalSettings ? AdvanceOnVideoEnd : _settings.GlobalAdvanceOnVideoEnd;
+
+    private bool GetEffectiveWaitForVideoEnd() =>
+        OverrideGlobalSettings ? PlaylistWaitForVideoEnd : _settings.GlobalWaitForVideoEnd;
     partial void OnCurrentPlaylistNameChanged(string? value) => SavePlaylistStateDebounced();
 
-    private void ApplyTimedSettingsIfRunning()
+    private bool IsRunningCustomPlaylist(IReadOnlyList<string> sessionPaths)
     {
-        if (_settings.LastSession?.IsTimedPlaylist != true || !PlayerHelper.IsPlaying) return;
-        int secs = GetEffectiveIntervalSeconds();
-        if (secs > 0) PlayerHelper.UpdateTimedSettings(PlaylistShuffle, secs);
+        var customPaths = new HashSet<string>(PlaylistItems
+            .Where(c => c.LibraryItem != null)
+            .Select(c => c.LibraryItem!.VideoPath));
+        return customPaths.Count > 0 && customPaths.Count == sessionPaths.Count
+            && sessionPaths.All(p => customPaths.Contains(p));
+    }
+
+    private void ApplyEffectivePlaylistSettingsIfRunning()
+    {
+        if (!PlayerHelper.IsPlaying) return;
+        var s = _settings.LastSession;
+        if (s == null || (!s.IsTimedPlaylist && !s.IsPlaylist)) return;
+        if (!IsRunningCustomPlaylist(s.Paths)) return;
+
+        bool advanceOnEnd = GetEffectiveAdvanceOnVideoEnd();
+
+        if (!advanceOnEnd && s.IsTimedPlaylist)
+        {
+            int secs = GetEffectiveIntervalSeconds();
+            if (secs > 0) PlayerHelper.UpdateTimedSettings(PlaylistShuffle, secs, GetEffectiveWaitForVideoEnd());
+        }
+        else if (advanceOnEnd && s.IsPlaylist)
+        {
+            // Pure mpv-native advance-on-end — shuffle order handled by ApplyShuffleOrderIfRunning
+            return;
+        }
+
+        // Mode changed — switch in place via IPC (no mpvpaper restart)
+        var paths = s.Paths;
+        if (paths.Count == 0) return;
+        if (advanceOnEnd)
+        {
+            PlayerHelper.SwitchFromTimedToAdvanceOnEnd(paths, PlaylistShuffle);
+            _settings.LastSession = new LastSession { IsPlaylist = true, Paths = paths, Shuffle = PlaylistShuffle, AdvanceOnVideoEnd = true, OverrideGlobalSettings = OverrideGlobalSettings };
+        }
+        else
+        {
+            int secs = GetEffectiveIntervalSeconds();
+            if (secs == 0) return;
+            bool waitForVideoEnd = GetEffectiveWaitForVideoEnd();
+            var playPaths = PlaylistShuffle ? paths.OrderBy(_ => Guid.NewGuid()).ToList() : new List<string>(paths);
+            PlayerHelper.SwitchFromAdvanceOnEndToTimed(playPaths, _settings.BuildMpvOptions(), PlaylistShuffle, secs, waitForVideoEnd);
+            _settings.LastSession = new LastSession { IsTimedPlaylist = true, Paths = paths, Shuffle = PlaylistShuffle, TimedIntervalSeconds = secs, WaitForVideoEnd = waitForVideoEnd, AdvanceOnVideoEnd = false, OverrideGlobalSettings = OverrideGlobalSettings };
+        }
+        SettingsService.Save(_settings);
+    }
+
+    // Refresh LastSession when settings change while nothing is playing.
+    // Mirrors ApplyEffectivePlaylistSettingsIfRunning's role for the idle case.
+    private void RefreshLastSessionFromSettingsIfIdle()
+    {
+        if (PlayerHelper.IsPlaying) return;
+        var s = _settings.LastSession;
+        if (s == null) return;
+        if (!s.IsTimedPlaylist && !s.IsPlaylist) return;
+
+        bool useOverride = s.OverrideGlobalSettings;
+        var currentPaths = PlaylistItems
+            .Where(c => c.LibraryItem != null)
+            .Select(c => c.LibraryItem!.VideoPath)
+            .ToList();
+        bool matchesStrip = currentPaths.Count > 0 && currentPaths.SequenceEqual(s.Paths);
+
+        if (useOverride && !matchesStrip) return;
+        if (matchesStrip) useOverride = OverrideGlobalSettings;
+
+        int newSecs = useOverride ? GetIntervalSeconds() : _settings.GlobalIntervalSeconds;
+        bool newAdvance = useOverride ? AdvanceOnVideoEnd : _settings.GlobalAdvanceOnVideoEnd;
+        bool newWait = useOverride ? PlaylistWaitForVideoEnd : _settings.GlobalWaitForVideoEnd;
+
+        bool hasScenes = s.Paths.Any(p => p.EndsWith(".scene", StringComparison.OrdinalIgnoreCase));
+        bool isPlaylist = newAdvance && !hasScenes;
+
+        _settings.LastSession = new LastSession
+        {
+            IsPlaylist = isPlaylist,
+            IsTimedPlaylist = !isPlaylist,
+            Paths = s.Paths,
+            Shuffle = s.Shuffle,
+            TimedIntervalSeconds = newSecs,
+            WaitForVideoEnd = newWait,
+            AdvanceOnVideoEnd = newAdvance,
+            OverrideGlobalSettings = useOverride
+        };
+        SettingsService.Save(_settings);
+    }
+
+    private void ApplyShuffleOrderIfRunning(bool shuffle)
+    {
+        if (!PlayerHelper.IsPlaying) return;
+        var s = _settings.LastSession;
+        if (s == null || (!s.IsTimedPlaylist && !s.IsPlaylist)) return;
+        if (!IsRunningCustomPlaylist(s.Paths)) return;
+        if (s.Paths.Count <= 1) return;
+        var paths = s.Paths; // canonical unshuffled order
+        Task.Run(() => PlayerHelper.ReorderPlaylist(paths, s.IsTimedPlaylist, shuffle));
     }
 
     private int _lastSelectedIndex = -1;
@@ -369,6 +520,10 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly Models.AppSettings _settings;
     private CancellationTokenSource? _volumeSaveCts;
     private CancellationTokenSource? _playlistSaveCts;
+    private CancellationTokenSource? _playlistSyncCts;
+    private bool _isSyncingVolume;
+    private bool _isSyncingSpeed;
+    private WallpaperCardViewModel? _currentlyPlayingCard;
 
     private static string PlaylistStatePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -398,6 +553,8 @@ public partial class MainWindowViewModel : ViewModelBase
         _globalIntervalMinutes = (gSecs % 3600) / 60;
         _globalIntervalSeconds = gSecs % 60;
         _globalAdvanceOnVideoEnd = _settings.GlobalAdvanceOnVideoEnd;
+        _globalWaitForVideoEnd = _settings.GlobalWaitForVideoEnd;
+        _playlistWaitForVideoEnd = _settings.PlaylistWaitForVideoEnd;
         _wallpaperEnginePath = _settings.WallpaperEnginePath;
         _weCopyFiles = _settings.WeCopyFiles;
         _resumeFromLast = _settings.ResumeFromLast;
@@ -429,10 +586,22 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             IsPlaylistEmpty = PlaylistItems.Count == 0;
             SavePlaylistStateDebounced();
+            SyncPlaylistToPlayerIfRunning();
+            RefreshPlayingStatus();
         };
 
         PlayerHelper.OnTimedPlaylistStopped = () =>
             Dispatcher.UIThread.Post(() => StatusMessage = "");
+
+        PlayerHelper.OnWallpaperChanged = path =>
+            Dispatcher.UIThread.Post(() =>
+            {
+                _currentlyPlayingCard = path == null ? null
+                    : LibraryWallpapers.FirstOrDefault(c => c.LibraryItem?.VideoPath == path);
+                RefreshPlayingStatus();
+            });
+
+
 
         LoadLibrary();
         RestorePlaylistState();
@@ -440,20 +609,25 @@ public partial class MainWindowViewModel : ViewModelBase
         var s = _settings.LastSession;
         if (s != null && PlayerHelper.IsPlaying)
         {
-            if (s.IsTimedPlaylist && PlayerHelper.ResumeTimedTimer())
-                StatusMessage = $"Playing playlist ({s.Paths.Count} wallpapers, switching every {FormatInterval(s.TimedIntervalSeconds)})";
-            else if (s.IsPlaylist)
-                StatusMessage = $"Playing playlist ({s.Paths.Count} wallpapers)";
+            if (s.IsTimedPlaylist) PlayerHelper.ResumeTimedTimer();
+            RefreshPlayingStatus();
             PlayerHelper.UpdateRestartTimer();
         }
     }
 
     // Settings change handlers
-    partial void OnLoopChanged(bool value) => SaveAndRebuild();
+    partial void OnLoopChanged(bool value)
+    {
+        SaveAndRebuild();
+        if (PlayerHelper.IsPlaying && _settings.LastSession?.IsPlaylist != true && _settings.LastSession?.IsTimedPlaylist != true)
+            Task.Run(() => PlayerHelper.SetLoop(value));
+        RefreshPlayingStatus();
+    }
     partial void OnNoAudioChanged(bool value)
     {
         SaveAndRebuild();
         Task.Run(() => PlayerHelper.SetMute(value));
+        RefreshPlayingStatus();
     }
     partial void OnDisableCacheChanged(bool value) => SaveAndRebuild();
     partial void OnDemuxerMaxBytesChanged(int value) => SaveAndRebuild();
@@ -468,6 +642,7 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnVolumeChanged(int value)
     {
         Task.Run(() => PlayerHelper.SetVolume(value));
+        RefreshPlayingStatus();
 
         _volumeSaveCts?.Cancel();
         _volumeSaveCts?.Dispose();
@@ -477,6 +652,8 @@ public partial class MainWindowViewModel : ViewModelBase
             if (!t.IsCanceled) Dispatcher.UIThread.Post(SaveAndRebuild);
         }, TaskScheduler.Default);
     }
+
+
 
     private void SaveAndRebuild()
     {
@@ -596,14 +773,9 @@ public partial class MainWindowViewModel : ViewModelBase
         if (GetEffectiveAdvanceOnVideoEnd())
         {
             PlayerHelper.ApplyPlaylist(paths, _settings.BuildMpvPlaylistOptions(), PlaylistShuffle);
-            _settings.LastSession = new LastSession
-            {
-                IsPlaylist = true,
-                Paths = paths,
-                Shuffle = PlaylistShuffle
-            };
+            _settings.LastSession = new LastSession { IsPlaylist = true, Paths = paths, Shuffle = PlaylistShuffle, AdvanceOnVideoEnd = true, OverrideGlobalSettings = OverrideGlobalSettings };
             SettingsService.Save(_settings);
-            StatusMessage = $"Playing playlist ({paths.Count} wallpapers, advancing on video end)";
+            RefreshPlayingStatusSoon();
             return;
         }
 
@@ -614,16 +786,20 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
         var playPaths = PlaylistShuffle ? paths.OrderBy(_ => Guid.NewGuid()).ToList() : paths;
-        PlayerHelper.ApplyTimedPlaylist(playPaths, _settings.BuildMpvOptions(), PlaylistShuffle, intervalSecs);
+        var waitForVideoEnd = GetEffectiveWaitForVideoEnd();
+        PlayerHelper.ApplyTimedPlaylist(playPaths, _settings.BuildMpvOptions(), PlaylistShuffle, intervalSecs, waitForVideoEnd);
         _settings.LastSession = new LastSession
         {
             IsTimedPlaylist = true,
             Paths = paths,
             Shuffle = PlaylistShuffle,
-            TimedIntervalSeconds = intervalSecs
+            TimedIntervalSeconds = intervalSecs,
+            WaitForVideoEnd = waitForVideoEnd,
+            AdvanceOnVideoEnd = false,
+            OverrideGlobalSettings = OverrideGlobalSettings
         };
         SettingsService.Save(_settings);
-        StatusMessage = $"Playing playlist ({paths.Count} wallpapers, switching every {GetEffectiveIntervalDisplay()})";
+        RefreshPlayingStatusSoon();
     }
 
     [RelayCommand]
@@ -645,14 +821,9 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             // Pre-arranged order; pass shuffle=false so mpv plays the clicked card first.
             PlayerHelper.ApplyPlaylist(paths, _settings.BuildMpvPlaylistOptions(), shuffle: false);
-            _settings.LastSession = new LastSession
-            {
-                IsPlaylist = true,
-                Paths = allPaths,
-                Shuffle = PlaylistShuffle
-            };
+            _settings.LastSession = new LastSession { IsPlaylist = true, Paths = allPaths, Shuffle = PlaylistShuffle, AdvanceOnVideoEnd = true, OverrideGlobalSettings = OverrideGlobalSettings };
             SettingsService.Save(_settings);
-            StatusMessage = $"Playing from: {card.Title}";
+            RefreshPlayingStatusSoon();
             return;
         }
 
@@ -663,16 +834,20 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        PlayerHelper.ApplyTimedPlaylist(paths, _settings.BuildMpvOptions(), PlaylistShuffle, intervalSecs);
+        var waitForVideoEnd = GetEffectiveWaitForVideoEnd();
+        PlayerHelper.ApplyTimedPlaylist(paths, _settings.BuildMpvOptions(), PlaylistShuffle, intervalSecs, waitForVideoEnd);
         _settings.LastSession = new LastSession
         {
             IsTimedPlaylist = true,
             Paths = allPaths,
             Shuffle = PlaylistShuffle,
-            TimedIntervalSeconds = intervalSecs
+            TimedIntervalSeconds = intervalSecs,
+            WaitForVideoEnd = waitForVideoEnd,
+            AdvanceOnVideoEnd = false,
+            OverrideGlobalSettings = OverrideGlobalSettings
         };
         SettingsService.Save(_settings);
-        StatusMessage = $"Playing from: {card.Title}";
+        RefreshPlayingStatusSoon();
     }
 
     public void MovePlaylistItem(int from, int insertionIndex)
@@ -705,6 +880,35 @@ public partial class MainWindowViewModel : ViewModelBase
         Task.Delay(200, cts.Token).ContinueWith(t =>
         {
             if (!t.IsCanceled) SavePlaylistState(paths, shuffle, secs, advance, overrideGlobal, name);
+        }, TaskScheduler.Default);
+    }
+
+    private void SyncPlaylistToPlayerIfRunning()
+    {
+        // Snapshot both old and new paths on the UI thread before the async delay
+        var oldPaths = _settings.LastSession?.Paths?.ToList() ?? [];
+        var newPaths = PlaylistItems
+            .Where(c => c.LibraryItem != null)
+            .Select(c => c.LibraryItem!.VideoPath)
+            .ToList();
+        var shuffle = PlaylistShuffle;
+
+        _playlistSyncCts?.Cancel();
+        _playlistSyncCts?.Dispose();
+        var cts = _playlistSyncCts = new CancellationTokenSource();
+        Task.Delay(100, cts.Token).ContinueWith(t =>
+        {
+            if (t.IsCanceled) return;
+            if (!PlayerHelper.IsPlaying) return;
+            var s = _settings.LastSession;
+            if (s == null || (!s.IsTimedPlaylist && !s.IsPlaylist)) return;
+            if (newPaths.Count == 0) return;
+            s.Paths = newPaths;
+            SettingsService.Save(_settings);
+            if (s.IsTimedPlaylist)
+                PlayerHelper.ReorderPlaylist(newPaths, true, shuffle);
+            else
+                PlayerHelper.SyncAdvanceOnEndPlaylist(oldPaths, newPaths, shuffle);
         }, TaskScheduler.Default);
     }
 
@@ -1192,9 +1396,9 @@ public partial class MainWindowViewModel : ViewModelBase
             if (_settings.GlobalAdvanceOnVideoEnd)
             {
                 PlayerHelper.ApplyPlaylist(paths, _settings.BuildMpvPlaylistOptions(), ShuffleLibrary);
-                _settings.LastSession = new LastSession { IsPlaylist = true, Paths = paths, Shuffle = ShuffleLibrary };
+                _settings.LastSession = new LastSession { IsPlaylist = true, Paths = paths, Shuffle = ShuffleLibrary, AdvanceOnVideoEnd = true, OverrideGlobalSettings = false };
                 SettingsService.Save(_settings);
-                StatusMessage = $"Playing {paths.Count} wallpapers, advancing on video end{(ShuffleLibrary ? " (shuffled)" : "")}";
+                RefreshPlayingStatus();
                 return;
             }
 
@@ -1205,16 +1409,19 @@ public partial class MainWindowViewModel : ViewModelBase
                 return;
             }
             var playPaths = ShuffleLibrary ? paths.OrderBy(_ => Guid.NewGuid()).ToList() : paths;
-            PlayerHelper.ApplyTimedPlaylist(playPaths, _settings.BuildMpvOptions(), ShuffleLibrary, intervalSecs);
+            PlayerHelper.ApplyTimedPlaylist(playPaths, _settings.BuildMpvOptions(), ShuffleLibrary, intervalSecs, _settings.GlobalWaitForVideoEnd);
             _settings.LastSession = new LastSession
             {
                 IsTimedPlaylist = true,
                 Paths = paths,
                 Shuffle = ShuffleLibrary,
-                TimedIntervalSeconds = intervalSecs
+                TimedIntervalSeconds = intervalSecs,
+                WaitForVideoEnd = _settings.GlobalWaitForVideoEnd,
+                AdvanceOnVideoEnd = false,
+                OverrideGlobalSettings = false
             };
             SettingsService.Save(_settings);
-            StatusMessage = $"Playing {paths.Count} wallpapers, switching every {FormatInterval(intervalSecs)}{(ShuffleLibrary ? " (shuffled)" : "")}";
+            RefreshPlayingStatus();
         }
         catch (Exception ex)
         {
@@ -1273,5 +1480,57 @@ public partial class MainWindowViewModel : ViewModelBase
         if (m > 0) parts.Add($"{m}m");
         if (s > 0 || parts.Count == 0) parts.Add($"{s}s");
         return string.Join(" ", parts);
+    }
+
+    private void RefreshPlayingStatusSoon()
+    {
+        if (PlayerHelper.IsPlaying) { RefreshPlayingStatus(); return; }
+        Task.Run(async () =>
+        {
+            for (int i = 0; i < 50 && !PlayerHelper.IsPlaying; i++)
+                await Task.Delay(100).ConfigureAwait(false);
+            if (PlayerHelper.IsPlaying)
+                Dispatcher.UIThread.Post(RefreshPlayingStatus);
+        });
+    }
+
+    private void RefreshPlayingStatus()
+    {
+        if (!PlayerHelper.IsPlaying) return;
+
+        var parts = new List<string>();
+        var s = _settings.LastSession;
+
+        int playlistCount = PlaylistItems.Count > 0 ? PlaylistItems.Count : s?.Paths.Count ?? 0;
+        if (s?.IsTimedPlaylist == true && s.Paths.Count > 1)
+        {
+            string desc = s.AdvanceOnVideoEnd
+                ? $"{playlistCount} wallpapers, on video end"
+                : $"{playlistCount} wallpapers, every {FormatInterval(GetEffectiveIntervalSeconds())}";
+            if (PlaylistShuffle) desc += " (shuffled)";
+            if (_currentlyPlayingCard != null) desc += $" → {_currentlyPlayingCard.Title}";
+            parts.Add(desc);
+        }
+        else if (s?.IsPlaylist == true)
+        {
+            string desc = $"{playlistCount} wallpapers, on video end";
+            if (PlaylistShuffle) desc += " (shuffled)";
+            if (_currentlyPlayingCard != null) desc += $" → {_currentlyPlayingCard.Title}";
+            parts.Add(desc);
+        }
+        else if (_currentlyPlayingCard != null)
+        {
+            parts.Add(_currentlyPlayingCard.Title);
+        }
+        else if (s?.Paths.Count == 1)
+        {
+            parts.Add(System.IO.Path.GetFileNameWithoutExtension(s.Paths[0]));
+        }
+
+        parts.Add(NoAudio ? $"Vol {Volume}% (muted)" : $"Vol {Volume}%");
+        if (Loop) parts.Add("Loop");
+        if (Math.Abs(Speed - 1.0) > 0.01) parts.Add($"{Speed:0.##}×");
+
+        StatusMessage = string.Join(" • ", parts);
     }
 }
