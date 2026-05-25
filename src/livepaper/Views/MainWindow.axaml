@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:asyncImageLoader="clr-namespace:AsyncImageLoader;assembly=AsyncImageLoader.Avalonia"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
         mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="720"
         x:Class="livepaper.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
@@ -106,28 +107,41 @@
 
                         <!-- Wallpaper grid -->
                         <ScrollViewer x:Name="BrowseScrollViewer"
-                                      Padding="12,12,12,0">
-                            <ItemsControl ItemsSource="{Binding BrowseWallpapers}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel Margin="0,0,0,32"/>
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      AllowAutoHide="False">
+                            <ItemsRepeater x:Name="BrowseItemsRepeater"
+                                           ItemsSource="{Binding BrowseWallpapers}"
+                                           Margin="10,0,0,0"
+                                           VerticalCacheLength="1">
+                                <ItemsRepeater.Layout>
+                                    <UniformGridLayout MinItemWidth="{Binding $parent[Window].DataContext.CardMinWidth}" ItemsStretch="Fill"/>
+                                </ItemsRepeater.Layout>
+                                <ItemsRepeater.ItemTemplate>
                                     <DataTemplate x:DataType="vm:WallpaperCardViewModel">
-                                        <Border Width="210" Margin="6" CornerRadius="10"
+                                        <Border Margin="6" CornerRadius="10"
                                                 ClipToBounds="True"
                                                 Background="{DynamicResource BgBase}">
-                                            <Grid RowDefinitions="150,*,Auto">
+                                            <Border.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Open Page"
+                                                              Command="{Binding OpenPageCommand}"
+                                                              IsVisible="{Binding !IsLocalSource}"/>
+                                                    <MenuItem Header="Open in File Manager"
+                                                              Command="{Binding OpenInFileManagerCommand}"
+                                                              IsVisible="{Binding IsLocalSource}"/>
+                                                </ContextMenu>
+                                            </Border.ContextMenu>
+                                            <Grid RowDefinitions="Auto,*,Auto">
 
                                                 <Button Grid.Row="0" Padding="0"
                                                         Background="Transparent" BorderThickness="0"
+                                                        HorizontalAlignment="Stretch"
+                                                        Height="{Binding $parent[Window].DataContext.CardThumbnailHeight}"
                                                         Command="{Binding $parent[Window].DataContext.OpenPreviewCommand}"
                                                         CommandParameter="{Binding}">
                                                     <asyncImageLoader:AdvancedImage
                                                         Source="{Binding ThumbnailSource}"
-                                                        Stretch="UniformToFill"
-                                                        Width="210" Height="150"/>
+                                                        Stretch="UniformToFill"/>
                                                 </Button>
 
                                                 <TextBlock Grid.Row="1"
@@ -156,8 +170,8 @@
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
                         </ScrollViewer>
 
                     </DockPanel>
@@ -191,9 +205,43 @@
                                                 Classes="ghost"
                                                 IsEnabled="{Binding !IsImporting}"
                                                 Command="{Binding OpenImportCommand}"/>
+                                        <Button Content="Stop"
+                                                Classes="danger"
+                                                Command="{Binding StopCommand}"/>
                                         <Button Content="Play All"
                                                 Classes="accent"
                                                 Command="{Binding PlayLibraryCommand}"/>
+                                        <TextBox Text="{Binding LibrarySearchQuery}"
+                                                 PlaceholderText="Search…"
+                                                 Width="220"
+                                                 VerticalAlignment="Center"/>
+                                        <Button Classes="ghost"
+                                                Width="28" Height="28" Padding="0"
+                                                ToolTip.Tip="Sort">
+                                            <Button.Flyout>
+                                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                                    <MenuItem Header="Name A–Z"
+                                                              Command="{Binding SetLibrarySortCommand}"
+                                                              CommandParameter="0"/>
+                                                    <MenuItem Header="Name Z–A"
+                                                              Command="{Binding SetLibrarySortCommand}"
+                                                              CommandParameter="1"/>
+                                                    <MenuItem Header="Videos first"
+                                                              Command="{Binding SetLibrarySortCommand}"
+                                                              CommandParameter="2"/>
+                                                    <MenuItem Header="Scenes first"
+                                                              Command="{Binding SetLibrarySortCommand}"
+                                                              CommandParameter="3"/>
+                                                    <MenuItem Header="Newest added"
+                                                              Command="{Binding SetLibrarySortCommand}"
+                                                              CommandParameter="4"/>
+                                                    <MenuItem Header="Oldest added"
+                                                              Command="{Binding SetLibrarySortCommand}"
+                                                              CommandParameter="5"/>
+                                                </MenuFlyout>
+                                            </Button.Flyout>
+                                            <mi:MaterialIcon Kind="SortVariant" Width="16" Height="16"/>
+                                        </Button>
                                     </StackPanel>
                                 </DockPanel>
                             </Border>
@@ -274,6 +322,16 @@
                                                             Width="100" CornerRadius="6"
                                                             ClipToBounds="True"
                                                             Background="{DynamicResource BgBase}">
+                                                        <Border.ContextMenu>
+                                                            <ContextMenu>
+                                                                <MenuItem Header="Remove from Playlist"
+                                                                          Command="{Binding AddToPlaylistCommand}"/>
+                                                                <MenuItem Header="Open in File Manager"
+                                                                          Command="{Binding OpenInFileManagerCommand}"/>
+                                                                <MenuItem Header="Settings"
+                                                                          Command="{Binding OpenSettingsCommand}"/>
+                                                            </ContextMenu>
+                                                        </Border.ContextMenu>
                                                         <Border.Styles>
                                                             <Style Selector="Border.playlist-item Grid.play-overlay">
                                                                 <Setter Property="Opacity" Value="0"/>
@@ -367,36 +425,44 @@
                             </Border>
 
                             <!-- Library grid -->
-                            <ScrollViewer x:Name="LibraryScrollViewer" Padding="12,12,12,0">
-                                <ItemsControl ItemsSource="{Binding LibraryWallpapers}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <WrapPanel Margin="0,0,0,32"/>
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
+                            <ScrollViewer x:Name="LibraryScrollViewer"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          AllowAutoHide="False">
+                                <ItemsRepeater x:Name="LibraryItemsRepeater"
+                                               ItemsSource="{Binding FilteredLibraryWallpapers}"
+                                               Margin="10,0,0,0"
+                                               VerticalCacheLength="1">
+                                    <ItemsRepeater.Layout>
+                                        <UniformGridLayout MinItemWidth="{Binding $parent[Window].DataContext.CardMinWidth}" ItemsStretch="Fill"/>
+                                    </ItemsRepeater.Layout>
+                                    <ItemsRepeater.ItemTemplate>
                                         <DataTemplate x:DataType="vm:WallpaperCardViewModel">
-                                            <Border Width="210" Margin="6" CornerRadius="10"
+                                            <Border Margin="6" CornerRadius="10"
                                                     ClipToBounds="True"
                                                     Background="{DynamicResource BgBase}">
                                                 <Border.ContextMenu>
                                                     <ContextMenu>
                                                         <MenuItem Header="Add to Playlist"
                                                                   Command="{Binding AddToPlaylistCommand}"/>
+                                                        <MenuItem Header="Open in File Manager"
+                                                                  Command="{Binding OpenInFileManagerCommand}"/>
+                                                        <MenuItem Header="Settings"
+                                                                  Command="{Binding OpenSettingsCommand}"/>
                                                     </ContextMenu>
                                                 </Border.ContextMenu>
-                                                <Grid RowDefinitions="150,*,Auto">
+                                                <Grid RowDefinitions="Auto,*,Auto">
 
-                                                    <!-- Thumbnail + checkmark -->
-                                                    <Grid Grid.Row="0">
+                                                    <!-- Thumbnail + badges -->
+                                                    <Grid Grid.Row="0"
+                                                          Height="{Binding $parent[Window].DataContext.CardThumbnailHeight}">
                                                         <Button Padding="0"
                                                                 Background="Transparent" BorderThickness="0"
+                                                                HorizontalAlignment="Stretch"
                                                                 Command="{Binding $parent[Window].DataContext.OpenPreviewCommand}"
                                                                 CommandParameter="{Binding}">
                                                             <asyncImageLoader:AdvancedImage
                                                                 Source="{Binding ThumbnailSource}"
-                                                                Stretch="UniformToFill"
-                                                                Width="210" Height="150"/>
+                                                                Stretch="UniformToFill"/>
                                                         </Button>
 
                                                         <!-- Checkmark badge -->
@@ -424,17 +490,20 @@
                                                                FontSize="12"
                                                                MaxLines="2"/>
 
-                                                    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="10,4,10,10">
+                                                    <Grid Grid.Row="2" ColumnDefinitions="8*,5*" Margin="10,4,10,10">
                                                         <Button Grid.Column="0"
                                                                 Content="Apply"
                                                                 Classes="accent"
                                                                 HorizontalAlignment="Stretch"
+                                                                FontSize="{Binding $parent[Window].DataContext.CardButtonFontSize}"
                                                                 Command="{Binding $parent[Window].DataContext.ApplyCommand}"
                                                                 CommandParameter="{Binding}"/>
                                                         <Button Grid.Column="1"
                                                                 Content="Delete"
                                                                 Classes="danger"
+                                                                HorizontalAlignment="Stretch"
                                                                 Margin="6,0,0,0"
+                                                                FontSize="{Binding $parent[Window].DataContext.CardButtonFontSize}"
                                                                 Command="{Binding $parent[Window].DataContext.DeleteCommand}"
                                                                 CommandParameter="{Binding}"/>
                                                     </Grid>
@@ -450,8 +519,8 @@
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                                    </ItemsRepeater.ItemTemplate>
+                                </ItemsRepeater>
                             </ScrollViewer>
 
                         </DockPanel>
@@ -549,7 +618,8 @@
 
                 <!-- ── Settings ── -->
                 <TabItem Header="Settings">
-                    <ScrollViewer>
+                    <ScrollViewer x:Name="SettingsScrollViewer"
+                                  HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="28" Spacing="20">
 
                             <TextBlock Text="Playback"
@@ -812,6 +882,31 @@
                                               IsChecked="{Binding WeCopyFiles}"
                                               Foreground="{DynamicResource TextColor}"/>
                                 </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="APPEARANCE"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Muted}"
+                                       LetterSpacing="2"/>
+                            <Border Background="{StaticResource BgBase}" CornerRadius="10" Padding="16">
+                                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,12,Auto">
+                                    <TextBlock Grid.Row="0" Grid.Column="0"
+                                               Text="Thumbnail aspect"
+                                               VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextColor}"/>
+                                    <ComboBox Grid.Row="0" Grid.Column="1"
+                                              ItemsSource="{Binding ThumbnailAspectOptions}"
+                                              SelectedItem="{Binding ThumbnailAspect}"
+                                              Width="130"/>
+                                    <TextBlock Grid.Row="2" Grid.Column="0"
+                                               Text="Card size"
+                                               VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextColor}"/>
+                                    <ComboBox Grid.Row="2" Grid.Column="1"
+                                              ItemsSource="{Binding CardSizeOptions}"
+                                              SelectedItem="{Binding CardSize}"
+                                              Width="130"/>
+                                </Grid>
                             </Border>
 
                             <TextBlock Text="COMMAND PREVIEW"

@@ -15,7 +15,7 @@ paths:
 - Global rotation: `GlobalIntervalSeconds` (1800), `GlobalAdvanceOnVideoEnd` (false)
 - Restart: `RestartIntervalSeconds` (default 600, min 5, max 3600) — clamped in model setter; always active
 - Wallpaper Engine: `WallpaperEnginePath`, `WeCopyFiles`, `ResumeFromLast`
-- UI: `Theme` ("Catppuccin Mocha")
+- UI: `ThumbnailAspect` ("Default"), `CardSize` ("Medium"), `LibrarySortIndex` (5 = newest first), `Theme` ("Catppuccin Mocha")
 - `LastSession`: tracks last applied mode for `--restore`
 
 `CustomPlaylist` (JSON at `~/.config/livepaper/playlist_state.json` for in-progress; named files in `~/.local/share/livepaper/playlists/`):

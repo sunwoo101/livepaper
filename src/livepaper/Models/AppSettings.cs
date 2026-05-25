@@ -26,6 +26,9 @@ public class AppSettings
     public int AutoMuteDelayMs { get; set; } = 200;
     public int AutoUnmuteDelayMs { get; set; } = 2000;
     public double AutoMuteThresholdDb { get; set; } = -70.0;
+    public string ThumbnailAspect { get; set; } = "Default";
+    public string CardSize { get; set; } = "Medium";
+    public int LibrarySortIndex { get; set; } = 5;
     public int GlobalIntervalSeconds { get; set; } = 1800;
     public bool GlobalAdvanceOnVideoEnd { get; set; } = true;
     public string Theme { get; set; } = "Catppuccin Mocha";
