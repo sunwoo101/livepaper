@@ -33,7 +33,9 @@ public static class LibraryService
         // Videos use .mp4; imported still images use .png. Both conventions
         // share the same .jpg-thumbnail / .id-sidecar layout.
         var mediaFiles = Directory.GetFiles(DownloadHelper.LibraryPath, "*.mp4")
-            .Concat(Directory.GetFiles(DownloadHelper.LibraryPath, "*.png"));
+            .Concat(Directory.GetFiles(DownloadHelper.LibraryPath, "*.png")
+                .Where(f => !File.Exists(Path.ChangeExtension(f, ".scene"))
+                         && !File.Exists(Path.ChangeExtension(f, ".mp4"))));
 
         foreach (var media in mediaFiles)
         {
@@ -51,12 +53,15 @@ public static class LibraryService
             string idFile = Path.ChangeExtension(media, ".id");
             string? sourceId = File.Exists(idFile) ? File.ReadAllText(idFile).Trim() : null;
 
+            string? workshopId = sourceId != null && sourceId.Length > 0 && sourceId.All(char.IsDigit) ? sourceId : null;
             items.Add(new LibraryItem
             {
                 Title = title,
                 VideoPath = media,
                 ThumbnailPath = File.Exists(jpg) ? jpg : null,
-                SourceId = sourceId
+                SourceId = sourceId,
+                WorkshopId = workshopId,
+                AddedAt = File.GetCreationTimeUtc(media)
             });
         }
         return items;

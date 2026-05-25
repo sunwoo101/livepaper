@@ -10,14 +10,15 @@ The app has three tabs:
 
 ### Browse Tab
 - Source selector (pill-style): motionbgs.com, moewalls.com, Desktophut, Wallpaper Engine local
-- Grid of wallpaper cards (thumbnail + title); clicking thumbnail opens fullscreen preview modal
+- Grid of wallpaper cards (`ItemsRepeater + UniformGridLayout`, responsive columns); thumbnail + title; clicking thumbnail opens fullscreen preview modal
 - Search box (enabled only for sources that support it)
 - Refresh button and loading bar (thin strip below top bar, no layout shift)
 - Per-card "Download & Apply" downloads + applies that card only
 - **Selection toolbar** docks at bottom when ≥1 selected (Shift/Ctrl-click, Ctrl+A): "N selected", `Download` (no apply), `Cancel`
 
 ### Library Tab
-- Grid of all downloaded wallpapers; circular badge top-right: `+`/`−` playlist toggle. Always visible.
+- Grid of downloaded wallpapers (`ItemsRepeater + UniformGridLayout`, responsive columns); circular badge top-right: `+`/`−` playlist toggle. Always visible.
+- Library search (debounced 200ms) + sort (Name A–Z/Z–A, Newest/Oldest)
 - "Import": file picker (`.mp4`/`.webm`/`.mov`/`.mkv`/`.avi`/`.gif`); title modal copies to library, ffmpeg 320px thumbnail at 1s. `.id` holds `import:<source-path>`.
 - "Play All" + "Shuffle" toggle — follows global Settings → PLAYLIST
 - Per-card: Apply, Delete
@@ -34,13 +35,15 @@ The app has three tabs:
 - **Memory**: Demuxer max bytes / back bytes (NumericUpDown, integer MiB)
 - **Rendering**: Hardware decoding (auto/nvdec/vaapi/no)
 - **Wallpaper Engine**: workshop folder picker, Copy files toggle
-- **Appearance**: Theme selector (31 built-in)
+- **Appearance**: Theme selector (31 built-in), Thumbnail aspect (Default/16:9/1:1), Card size (Small/Medium/Large)
 - Live mpv options preview; Reset to Defaults; keybind snippets for `--action=…`
 
 ## Key NuGet Packages
 
 - `Avalonia`, `Avalonia.Desktop`, `Avalonia.Themes.Fluent` — UI framework
+- `Avalonia.Controls.ItemsRepeater` — `ItemsRepeater` for Browse and Library grids
 - `AsyncImageLoader.Avalonia` — `AdvancedImage` for HTTP image loading (bind `Source` to string URL)
+- `Material.Icons.Avalonia` — `<mi:MaterialIcon Kind="..."/>`
 - `CommunityToolkit.Mvvm` — `[ObservableProperty]`, `[RelayCommand]`, source generators
 - `HtmlAgilityPack` — HTML parsing for scrapers
 - `System.Text.Json` — JSON for `project.json` and settings
@@ -51,6 +54,7 @@ The app has three tabs:
 - **Drag-and-drop in Avalonia 12**: `DataFormat.CreateInProcessFormat<T>`, `DataTransferItem.Create`, `DataTransfer.Add`, `DragDrop.DoDragDropAsync`, `DragEventArgs.DataTransfer` (not `.Data`). For reordering, manual pointer tracking at window level is simpler.
 - **Window-level pointer handler**: `this.AddHandler(PointerPressedEvent, handler, RoutingStrategies.Bubble, handledEventsToo: true)`. Use `IsWithin(source, scrollViewer)` to scope by area; `IsWithinButton(source, stopAt)` with `stopAt` boundary to avoid walking past the container.
 - **`StaticResource` vs `DynamicResource`**: themes require `DynamicResource` — `StaticResource` won't update on theme swap. All color brush bindings use `DynamicResource`.
+- **Library grid binds to `FilteredLibraryWallpapers`**, not `LibraryWallpapers`. During bulk `LoadLibrary()`, `_suppressFilterUpdate = true`; `UpdateFilteredLibrary()` called once after.
 
 ## Theme System
 

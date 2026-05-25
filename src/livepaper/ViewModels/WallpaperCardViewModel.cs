@@ -13,8 +13,10 @@ public partial class WallpaperCardViewModel : ViewModelBase
     public string? Resolution { get; }
     public LibraryItem? LibraryItem { get; }
 
+    public bool IsScene { get; }
     [ObservableProperty] private bool _isSelected;
     [ObservableProperty] private bool _isInPlaylist;
+    [ObservableProperty] private bool _isCurrentlyPlaying;
 
     public string CheckmarkText => IsInPlaylist ? "−" : "+";
 
