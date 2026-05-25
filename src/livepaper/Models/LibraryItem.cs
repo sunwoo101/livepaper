@@ -1,3 +1,5 @@
+using System;
+
 namespace livepaper.Models;
 
 public class LibraryItem
@@ -6,4 +8,6 @@ public class LibraryItem
     public required string VideoPath { get; init; }
     public string? ThumbnailPath { get; init; }
     public string? SourceId { get; init; }
+    public string? WorkshopId { get; init; }
+    public DateTime AddedAt { get; init; }
 }

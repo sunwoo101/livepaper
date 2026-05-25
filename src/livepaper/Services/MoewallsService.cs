@@ -10,6 +10,7 @@ public class MoewallsService : IBgsProvider
     public string Name => "Moewalls";
     public bool SupportsSearch => true;
     public bool SupportsPagination => true;
+    public bool SupportsSorting => false;
 
     public Task<List<WallpaperResult>> GetLatestAsync(int page = 1)
         => MoewallsScraper.GetLatestAsync(page);

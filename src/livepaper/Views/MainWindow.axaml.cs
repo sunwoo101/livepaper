@@ -7,6 +7,7 @@ using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.Controls.Primitives;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using livepaper.ViewModels;
@@ -15,14 +16,20 @@ namespace livepaper.Views;
 
 public partial class MainWindow : Window
 {
+    // Layout constants
+    private const double MinCardWidthLandscape = 250;
+    private const double MinCardWidthPortrait = 160;
+    private const double CardHorizontalMargin = 8;
+    private const double PlaylistItemWidth = 100;
+    private const double PlaylistItemSpacing = 6;
+    private const double PlaylistItemStride = PlaylistItemWidth + PlaylistItemSpacing;
+
+    private double _lastRepeaterWidth;
+
     // Playlist drag state
     private WallpaperCardViewModel? _dragCard;
     private bool _isDragging;
     private Point _dragStartPos;
-
-    private const double PlaylistItemWidth = 100;
-    private const double PlaylistItemSpacing = 6;
-    private const double PlaylistItemStride = PlaylistItemWidth + PlaylistItemSpacing;
 
     public MainWindow()
     {
@@ -30,6 +37,17 @@ public partial class MainWindow : Window
         BrowseScrollViewer.ScrollChanged += OnBrowseScrollChanged;
         DataContextChanged += OnDataContextChanged;
         KeyDown += OnKeyDown;
+        new SmoothScroller(BrowseScrollViewer);
+        new SmoothScroller(LibraryScrollViewer);
+        new SmoothScroller(SettingsScrollViewer);
+        new SmoothScroller(PlaylistScrollViewer);
+        Loaded += (_, _) =>
+        {
+            BrowseItemsRepeater.SizeChanged += (_, _) => UpdateCardThumbnailHeight();
+            LibraryItemsRepeater.SizeChanged += (_, _) => UpdateCardThumbnailHeight();
+            if (Vm != null) Vm.CardLayoutChanged = UpdateCardThumbnailHeight;
+            UpdateCardThumbnailHeight();
+        };
 
         this.AddHandler(PointerPressedEvent, OnPointerPressed, RoutingStrategies.Bubble, handledEventsToo: true);
         this.AddHandler(PointerMovedEvent, OnPointerMoved, RoutingStrategies.Bubble, handledEventsToo: true);
@@ -160,14 +178,14 @@ public partial class MainWindow : Window
         {
             if (IsWithinButton(source, LibraryScrollViewer)) return;
             var card = FindAncestorDataContext<WallpaperCardViewModel>(source, LibraryScrollViewer);
-            if (card == null) return;
+            if (card == null) { Vm?.DeselectAllLibrary(); return; }
             Vm?.SelectCard(card, shift, ctrl);
         }
         else if (IsWithin(source, BrowseScrollViewer))
         {
             if (IsWithinButton(source, BrowseScrollViewer)) return;
             var card = FindAncestorDataContext<WallpaperCardViewModel>(source, BrowseScrollViewer);
-            if (card == null) return;
+            if (card == null) { Vm?.DeselectAllBrowse(); return; }
             Vm?.SelectBrowseCard(card, shift, ctrl);
         }
     }
@@ -313,6 +331,35 @@ public partial class MainWindow : Window
             vm.LoadMoreCommand.Execute(null);
     }
 
+    private void UpdateCardThumbnailHeight()
+    {
+        if (Vm == null) return;
+        var width = BrowseItemsRepeater.Bounds.Width > 0
+            ? BrowseItemsRepeater.Bounds.Width
+            : LibraryItemsRepeater.Bounds.Width;
+        if (width > 0) _lastRepeaterWidth = width;
+        else width = _lastRepeaterWidth;
+        if (width <= 0) return;
+        (double minCardWidth, double ratio) = Vm.ThumbnailAspect switch
+        {
+            "1:1"  => (MinCardWidthPortrait,  1.0),
+            "16:9" => (MinCardWidthLandscape, 9.0 / 16.0),
+            _      => (210.0,                 150.0 / 210.0),
+        };
+        double sizeMultiplier = Vm.CardSize switch
+        {
+            "Small" => 0.65,
+            "Large" => 1.5,
+            _       => 1.0,
+        };
+        minCardWidth *= sizeMultiplier;
+        Vm.CardMinWidth = minCardWidth;
+        Vm.CardButtonFontSize = Math.Clamp(Math.Round(13.0 * minCardWidth / 210.0), 9, 13);
+        int cols = Math.Max(1, (int)Math.Floor(width / minCardWidth));
+        double cardWidth = width / cols - CardHorizontalMargin;
+        Vm.CardThumbnailHeight = Math.Round(cardWidth * ratio);
+    }
+
     private void OnBrowseScrollChanged(object? sender, ScrollChangedEventArgs e)
     {
         if (sender is not ScrollViewer sv) return;
@@ -321,5 +368,82 @@ public partial class MainWindow : Window
 
         if (sv.Extent.Height - sv.Offset.Y - sv.Viewport.Height < 300)
             vm.LoadMoreCommand.Execute(null);
+    }
+
+    private sealed class SmoothScroller
+    {
+        private readonly ScrollViewer _sv;
+        private double _velocity;
+        private bool _animating;
+        private TimeSpan? _lastTime;
+        private const double Impulse = 80.0;
+        private const double Friction = 0.85;
+        private const double StopThreshold = 0.1;
+        private const double MaxVelocity = 2500.0;
+
+        public SmoothScroller(ScrollViewer sv)
+        {
+            _sv = sv;
+            sv.AddHandler(PointerWheelChangedEvent, OnWheel, RoutingStrategies.Tunnel);
+        }
+
+        private void OnWheel(object? sender, PointerWheelEventArgs e)
+        {
+            // Let sliders and spinners handle their own wheel events
+            if (e.Source is Slider or NumericUpDown) return;
+            if ((e.Source as Visual)?.FindAncestorOfType<Slider>() != null) return;
+            if ((e.Source as Visual)?.FindAncestorOfType<NumericUpDown>() != null) return;
+
+            double delta = e.Delta.Y != 0 ? e.Delta.Y : e.Delta.X;
+            _velocity = Math.Clamp(_velocity - delta * Impulse, -MaxVelocity, MaxVelocity);
+            e.Handled = true;
+
+            if (!_animating)
+            {
+                _animating = true;
+                _lastTime = null;
+                TopLevel.GetTopLevel(_sv)?.RequestAnimationFrame(OnFrame);
+            }
+        }
+
+        private void OnFrame(TimeSpan time)
+        {
+            if (!_animating) return;
+
+            double dt = _lastTime.HasValue
+                ? Math.Min((time - _lastTime.Value).TotalMilliseconds, 64)
+                : 16.0;
+            _lastTime = time;
+
+            _velocity *= Math.Pow(Friction, dt / 16.0);
+
+            if (Math.Abs(_velocity) < StopThreshold)
+            {
+                _animating = false;
+                _velocity = 0;
+                return;
+            }
+
+            var currentOffset = _sv.Offset;
+            bool isHorizontal = _sv.HorizontalScrollBarVisibility != ScrollBarVisibility.Disabled &&
+                               _sv.VerticalScrollBarVisibility == ScrollBarVisibility.Disabled;
+
+            if (isHorizontal)
+            {
+                var maxX = Math.Max(0, _sv.Extent.Width - _sv.Viewport.Width);
+                var newX = Math.Clamp(currentOffset.X + _velocity * (dt / 16.0), 0, maxX);
+                if (newX <= 0 || newX >= maxX) _velocity = 0;
+                _sv.Offset = new Vector(newX, currentOffset.Y);
+            }
+            else
+            {
+                var maxY = Math.Max(0, _sv.Extent.Height - _sv.Viewport.Height);
+                var newY = Math.Clamp(currentOffset.Y + _velocity * (dt / 16.0), 0, maxY);
+                if (newY <= 0 || newY >= maxY) _velocity = 0;
+                _sv.Offset = new Vector(currentOffset.X, newY);
+            }
+
+            TopLevel.GetTopLevel(_sv)?.RequestAnimationFrame(OnFrame);
+        }
     }
 }

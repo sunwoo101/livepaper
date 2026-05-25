@@ -51,4 +51,5 @@ Plain HTTP with Firefox User-Agent works — no browser automation needed.
   - Skip when `type` isn't `"video"` (filters out `scene`, `web`, `application`)
   - `file` field gives the actual video filename
   - `title` field becomes the wallpaper title
-- Thumbnail: `preview.jpg` or any `.gif`/`.png`/`.jpg`/`.jpeg` in the same directory
+- Thumbnail: `preview.jpg` preferred; GIF thumbnails → static frame via ffmpeg cached to `~/.cache/livepaper/we_thumbs/<workshopId>.jpg`; fallback to any `.png`/`.jpg`/`.jpeg`
+- `SupportsSorting` returns true only for this source; sort UI visible only when WE local is selected

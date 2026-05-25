@@ -381,6 +381,7 @@ public static class PlayerHelper
     }
 
     public static Action? OnTimedPlaylistStopped;
+    public static Action<string?>? OnWallpaperChanged;
 
     private record TimedState(
         List<string> Paths, int Index,

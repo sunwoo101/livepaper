@@ -13,8 +13,11 @@ public partial class WallpaperCardViewModel : ViewModelBase
     public string? Resolution { get; }
     public LibraryItem? LibraryItem { get; }
 
+    public bool IsScene { get; }
+    public string? WorkshopId { get; }
     [ObservableProperty] private bool _isSelected;
     [ObservableProperty] private bool _isInPlaylist;
+    [ObservableProperty] private bool _isCurrentlyPlaying;
 
     public string CheckmarkText => IsInPlaylist ? "−" : "+";
 
@@ -31,6 +34,8 @@ public partial class WallpaperCardViewModel : ViewModelBase
         ThumbnailSource = result.ThumbnailUrl;
         PageUrl = result.PageUrl;
         Resolution = result.Resolution;
+        IsScene = result.IsScene;
+        WorkshopId = result.WorkshopId;
     }
 
     public WallpaperCardViewModel(LibraryItem item)
@@ -39,5 +44,6 @@ public partial class WallpaperCardViewModel : ViewModelBase
         ThumbnailSource = item.ThumbnailPath ?? "";
         PageUrl = item.VideoPath;
         LibraryItem = item;
+        WorkshopId = item.WorkshopId;
     }
 }
