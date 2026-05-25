@@ -33,7 +33,9 @@ public static class LibraryService
         // Videos use .mp4; imported still images use .png. Both conventions
         // share the same .jpg-thumbnail / .id-sidecar layout.
         var mediaFiles = Directory.GetFiles(DownloadHelper.LibraryPath, "*.mp4")
-            .Concat(Directory.GetFiles(DownloadHelper.LibraryPath, "*.png"));
+            .Concat(Directory.GetFiles(DownloadHelper.LibraryPath, "*.png")
+                .Where(f => !File.Exists(Path.ChangeExtension(f, ".scene"))
+                         && !File.Exists(Path.ChangeExtension(f, ".mp4"))));
 
         foreach (var media in mediaFiles)
         {
@@ -46,20 +48,34 @@ public static class LibraryService
             }
 
             string title = Path.GetFileNameWithoutExtension(media);
-            string jpg = Path.ChangeExtension(media, ".jpg");
-
             string idFile = Path.ChangeExtension(media, ".id");
             string? sourceId = File.Exists(idFile) ? File.ReadAllText(idFile).Trim() : null;
 
+            string? workshopId = sourceId != null && sourceId.Length > 0 && sourceId.All(char.IsDigit) ? sourceId : null;
             items.Add(new LibraryItem
             {
                 Title = title,
                 VideoPath = media,
-                ThumbnailPath = File.Exists(jpg) ? jpg : null,
-                SourceId = sourceId
+                ThumbnailPath = FindLibraryThumbnail(media),
+                SourceId = sourceId,
+                WorkshopId = workshopId,
+                AddedAt = File.GetCreationTimeUtc(media)
             });
         }
         return items;
+    }
+
+    private static string? FindLibraryThumbnail(string mediaPath)
+    {
+        string dir = Path.GetDirectoryName(mediaPath) ?? "";
+        string name = Path.GetFileNameWithoutExtension(mediaPath);
+        foreach (var file in Directory.EnumerateFiles(dir, name + ".*"))
+        {
+            string ext = Path.GetExtension(file).ToLower();
+            if (ext == ".jpg" || ext == ".png" || ext == ".gif" || ext == ".jpeg")
+                return file;
+        }
+        return null;
     }
 
     private static bool IsSymlink(string path)
@@ -71,7 +87,8 @@ public static class LibraryService
     private static void CleanOrphan(string mp4Path)
     {
         try { File.Delete(mp4Path); } catch { }
-        try { File.Delete(Path.ChangeExtension(mp4Path, ".jpg")); } catch { }
+        foreach (var ext in new[] { ".jpg", ".jpeg", ".png", ".gif" })
+            try { File.Delete(Path.ChangeExtension(mp4Path, ext)); } catch { }
         try { File.Delete(Path.ChangeExtension(mp4Path, ".id")); } catch { }
     }
 }
