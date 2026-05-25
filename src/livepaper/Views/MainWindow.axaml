@@ -4,6 +4,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:asyncImageLoader="clr-namespace:AsyncImageLoader;assembly=AsyncImageLoader.Avalonia"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+        xmlns:gif="clr-namespace:Avalonia.Labs.Gif;assembly=Avalonia.Labs.Gif"
         mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="720"
         x:Class="livepaper.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
@@ -15,7 +17,8 @@
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
-    <Grid RowDefinitions="*,Auto">
+
+<Grid RowDefinitions="*,Auto,Auto">
 
             <TabControl Grid.Row="0" x:Name="MainTabControl">
 
@@ -65,10 +68,12 @@
                                             Classes="ghost"
                                             Command="{Binding SearchCommand}"
                                             IsEnabled="{Binding SelectedSource.SupportsSearch}"/>
-                                    <Button Content="↺"
-                                            Classes="ghost"
+                                    <Button Classes="ghost"
+                                            Width="28" Height="28" Padding="0"
                                             Command="{Binding LoadWallpapersCommand}"
-                                            ToolTip.Tip="Refresh"/>
+                                            ToolTip.Tip="Refresh">
+                                        <mi:MaterialIcon Kind="Refresh" Width="16" Height="16"/>
+                                    </Button>
                                 </StackPanel>
 
                             </DockPanel>
@@ -106,28 +111,39 @@
 
                         <!-- Wallpaper grid -->
                         <ScrollViewer x:Name="BrowseScrollViewer"
-                                      Padding="12,12,12,0">
-                            <ItemsControl ItemsSource="{Binding BrowseWallpapers}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel Margin="0,0,0,32"/>
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      AllowAutoHide="False">
+                            <ItemsRepeater x:Name="BrowseItemsRepeater"
+                                           ItemsSource="{Binding BrowseWallpapers}"
+                                           Margin="10,0,0,0"
+                                           VerticalCacheLength="1">
+                                <ItemsRepeater.Layout>
+                                    <UniformGridLayout MinItemWidth="{Binding $parent[Window].DataContext.CardMinWidth}" ItemsStretch="Fill"/>
+                                </ItemsRepeater.Layout>
+                                <ItemsRepeater.ItemTemplate>
                                     <DataTemplate x:DataType="vm:WallpaperCardViewModel">
-                                        <Border Width="210" Margin="6" CornerRadius="10"
+                                        <Border Margin="6" CornerRadius="10"
                                                 ClipToBounds="True"
-                                                Background="{DynamicResource BgBase}">
-                                            <Grid RowDefinitions="150,*,Auto">
+                                                Background="{DynamicResource BgBase}"
+                                                PointerEntered="OnCardPointerEntered"
+                                                PointerExited="OnCardPointerExited">
+                                            <Grid RowDefinitions="Auto,*,Auto">
 
                                                 <Button Grid.Row="0" Padding="0"
                                                         Background="Transparent" BorderThickness="0"
+                                                        HorizontalAlignment="Stretch"
+                                                        Height="{Binding $parent[Window].DataContext.CardThumbnailHeight}"
                                                         Command="{Binding $parent[Window].DataContext.OpenPreviewCommand}"
                                                         CommandParameter="{Binding}">
-                                                    <asyncImageLoader:AdvancedImage
-                                                        Source="{Binding ThumbnailSource}"
-                                                        Stretch="UniformToFill"
-                                                        Width="210" Height="150"/>
+                                                    <Panel>
+                                                        <asyncImageLoader:AdvancedImage
+                                                            Source="{Binding ThumbnailSource}"
+                                                            Stretch="UniformToFill"/>
+                                                        <Viewbox IsVisible="{Binding IsGifActive}"
+                                                                 Stretch="UniformToFill">
+                                                            <gif:GifImage Source="{Binding ActiveGifSource}"/>
+                                                        </Viewbox>
+                                                    </Panel>
                                                 </Button>
 
                                                 <TextBlock Grid.Row="1"
@@ -146,18 +162,22 @@
                                                         Command="{Binding $parent[Window].DataContext.DownloadCommand}"
                                                         CommandParameter="{Binding}"/>
 
-                                                <!-- Selection overlay -->
-                                                <Border Grid.RowSpan="3"
-                                                        IsVisible="{Binding IsSelected}"
-                                                        BorderBrush="{DynamicResource Accent}"
-                                                        BorderThickness="2.5"
-                                                        CornerRadius="10"
-                                                        IsHitTestVisible="False"/>
+                                                <!-- State overlays -->
+                                                <Panel Grid.RowSpan="3" IsHitTestVisible="False">
+                                                    <Border Classes="library-hover-outline"
+                                                            BorderBrush="{DynamicResource Accent}"
+                                                            BorderThickness="2.5"
+                                                            CornerRadius="10"/>
+                                                    <Border IsVisible="{Binding IsSelected}"
+                                                            BorderBrush="{DynamicResource Accent}"
+                                                            BorderThickness="2.5"
+                                                            CornerRadius="10"/>
+                                                </Panel>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
                         </ScrollViewer>
 
                     </DockPanel>
@@ -191,152 +211,47 @@
                                                 Classes="ghost"
                                                 IsEnabled="{Binding !IsImporting}"
                                                 Command="{Binding OpenImportCommand}"/>
+                                        <Button Content="Stop"
+                                                Classes="danger"
+                                                Command="{Binding StopCommand}"/>
                                         <Button Content="Play All"
                                                 Classes="accent"
                                                 Command="{Binding PlayLibraryCommand}"/>
+                                        <TextBox Text="{Binding LibrarySearchQuery}"
+                                                 PlaceholderText="Search…"
+                                                 Width="220"
+                                                 VerticalAlignment="Center"/>
+                                        <Button Classes="ghost"
+                                                Width="28" Height="28" Padding="0"
+                                                ToolTip.Tip="Sort">
+                                            <Button.Flyout>
+                                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                                    <MenuItem Header="Name A–Z"
+                                                              Command="{Binding SetLibrarySortCommand}"
+                                                              CommandParameter="0"/>
+                                                    <MenuItem Header="Name Z–A"
+                                                              Command="{Binding SetLibrarySortCommand}"
+                                                              CommandParameter="1"/>
+                                                    <MenuItem Header="Videos first"
+                                                              Command="{Binding SetLibrarySortCommand}"
+                                                              CommandParameter="2"/>
+                                                    <MenuItem Header="Scenes first"
+                                                              Command="{Binding SetLibrarySortCommand}"
+                                                              CommandParameter="3"/>
+                                                    <MenuItem Header="Newest added"
+                                                              Command="{Binding SetLibrarySortCommand}"
+                                                              CommandParameter="4"/>
+                                                    <MenuItem Header="Oldest added"
+                                                              Command="{Binding SetLibrarySortCommand}"
+                                                              CommandParameter="5"/>
+                                                </MenuFlyout>
+                                            </Button.Flyout>
+                                            <mi:MaterialIcon Kind="SortVariant" Width="16" Height="16"/>
+                                        </Button>
                                     </StackPanel>
                                 </DockPanel>
                             </Border>
 
-                            <!-- Playlist panel (bottom) -->
-                            <Border DockPanel.Dock="Bottom"
-                                    Background="{DynamicResource BgMantle}"
-                                    BorderBrush="{DynamicResource Surface0}"
-                                    BorderThickness="0,1,0,0"
-                                    MinHeight="140">
-                                <DockPanel Margin="12,8">
-
-                                    <!-- Playlist header -->
-                                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                                        <TextBlock Text="PLAYLIST"
-                                                   FontSize="11" FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource Muted}"
-                                                   LetterSpacing="2"
-                                                   VerticalAlignment="Center"/>
-                                        <StackPanel DockPanel.Dock="Right"
-                                                    Orientation="Horizontal"
-                                                    Spacing="6"
-                                                    HorizontalAlignment="Right">
-                                            <Button Classes="ghost"
-                                                    Width="32" Height="32" Padding="0"
-                                                    ToolTip.Tip="Playlist Settings"
-                                                    Command="{Binding TogglePlaylistSettingsCommand}">
-                                                <TextBlock Text="⚙" FontSize="18"
-                                                           HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center"/>
-                                            </Button>
-                                            <Button Classes="ghost"
-                                                    Width="32" Height="32" Padding="0"
-                                                    ToolTip.Tip="Load Playlist"
-                                                    Command="{Binding OpenLoadPlaylistCommand}">
-                                                <TextBlock Text="📂" FontSize="16"
-                                                           HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center"/>
-                                            </Button>
-                                            <Button Classes="ghost"
-                                                    Width="32" Height="32" Padding="0"
-                                                    ToolTip.Tip="Save Playlist"
-                                                    Command="{Binding OpenSavePlaylistCommand}">
-                                                <TextBlock Text="💾" FontSize="16"
-                                                           HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center"/>
-                                            </Button>
-                                            <Button Content="▶ Play"
-                                                    Classes="accent"
-                                                    Command="{Binding PlayCustomPlaylistCommand}"/>
-                                        </StackPanel>
-                                    </DockPanel>
-
-                                    <!-- Empty state -->
-                                    <TextBlock IsVisible="{Binding IsPlaylistEmpty}"
-                                               Text="Add wallpapers using the + button on each card"
-                                               Foreground="{DynamicResource Muted}"
-                                               FontSize="12"
-                                               VerticalAlignment="Center"
-                                               HorizontalAlignment="Center"/>
-
-                                    <!-- Playlist thumbnails -->
-                                    <Grid IsVisible="{Binding !IsPlaylistEmpty}"
-                                          ClipToBounds="True">
-                                        <ScrollViewer x:Name="PlaylistScrollViewer"
-                                                      HorizontalScrollBarVisibility="Auto"
-                                                      VerticalScrollBarVisibility="Disabled">
-                                        <ItemsControl x:Name="PlaylistItemsControl"
-                                                      ItemsSource="{Binding PlaylistItems}">
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate>
-                                                    <StackPanel Orientation="Horizontal" Spacing="6"/>
-                                                </ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:WallpaperCardViewModel">
-                                                    <Border Classes="playlist-item"
-                                                            Width="100" CornerRadius="6"
-                                                            ClipToBounds="True"
-                                                            Background="{DynamicResource BgBase}">
-                                                        <Border.Styles>
-                                                            <Style Selector="Border.playlist-item Grid.play-overlay">
-                                                                <Setter Property="Opacity" Value="0"/>
-                                                            </Style>
-                                                            <Style Selector="Border.playlist-item:pointerover Grid.play-overlay">
-                                                                <Setter Property="Opacity" Value="1"/>
-                                                            </Style>
-                                                        </Border.Styles>
-                                                        <Grid Height="90">
-                                                            <asyncImageLoader:AdvancedImage
-                                                                Source="{Binding ThumbnailSource}"
-                                                                Stretch="UniformToFill"
-                                                                Width="100" Height="90"/>
-                                                            <Grid Classes="play-overlay"
-                                                                  Background="#80000000"
-                                                                  IsHitTestVisible="False">
-                                                                <TextBlock Text="▶"
-                                                                           FontSize="28"
-                                                                           Foreground="White"
-                                                                           HorizontalAlignment="Center"
-                                                                           VerticalAlignment="Center"/>
-                                                            </Grid>
-                                                            <Border Background="#99000000"
-                                                                    VerticalAlignment="Bottom"
-                                                                    Padding="4,2">
-                                                                <TextBlock Text="{Binding Title}"
-                                                                           FontSize="10"
-                                                                           Foreground="White"
-                                                                           TextTrimming="CharacterEllipsis"/>
-                                                            </Border>
-                                                            <Button HorizontalAlignment="Right"
-                                                                    VerticalAlignment="Top"
-                                                                    Margin="0,5,5,0"
-                                                                    Width="24" Height="24"
-                                                                    CornerRadius="12" Padding="0"
-                                                                    BorderThickness="0"
-                                                                    Background="{DynamicResource BgCrust}"
-                                                                    Command="{Binding $parent[Window].DataContext.RemoveFromPlaylistCommand}"
-                                                                    CommandParameter="{Binding}">
-                                                                <TextBlock Text="−"
-                                                                           FontSize="12" FontWeight="Bold"
-                                                                           Foreground="{DynamicResource Accent}"
-                                                                           HorizontalAlignment="Center"
-                                                                           VerticalAlignment="Center"/>
-                                                            </Button>
-                                                        </Grid>
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                        </ScrollViewer>
-                                        <!-- Drop position indicator -->
-                                        <Border x:Name="PlaylistDropIndicator"
-                                                Width="2" CornerRadius="1"
-                                                VerticalAlignment="Stretch"
-                                                HorizontalAlignment="Left"
-                                                Background="{DynamicResource Accent}"
-                                                IsHitTestVisible="False"
-                                                IsVisible="False"/>
-                                    </Grid>
-
-                                </DockPanel>
-                            </Border>
 
                             <!-- Selection toolbar (above playlist strip) -->
                             <Border DockPanel.Dock="Bottom"
@@ -367,36 +282,48 @@
                             </Border>
 
                             <!-- Library grid -->
-                            <ScrollViewer x:Name="LibraryScrollViewer" Padding="12,12,12,0">
-                                <ItemsControl ItemsSource="{Binding LibraryWallpapers}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <WrapPanel Margin="0,0,0,32"/>
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
+                            <ScrollViewer x:Name="LibraryScrollViewer"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          AllowAutoHide="False">
+                                <ItemsRepeater x:Name="LibraryItemsRepeater"
+                                               ItemsSource="{Binding FilteredLibraryWallpapers}"
+                                               Margin="10,0,0,0"
+                                               VerticalCacheLength="1">
+                                    <ItemsRepeater.Layout>
+                                        <UniformGridLayout MinItemWidth="{Binding $parent[Window].DataContext.CardMinWidth}" ItemsStretch="Fill"/>
+                                    </ItemsRepeater.Layout>
+                                    <ItemsRepeater.ItemTemplate>
                                         <DataTemplate x:DataType="vm:WallpaperCardViewModel">
-                                            <Border Width="210" Margin="6" CornerRadius="10"
+                                            <Border Margin="6" CornerRadius="10"
                                                     ClipToBounds="True"
-                                                    Background="{DynamicResource BgBase}">
+                                                    Background="{DynamicResource BgBase}"
+                                                    PointerEntered="OnCardPointerEntered"
+                                                    PointerExited="OnCardPointerExited">
                                                 <Border.ContextMenu>
                                                     <ContextMenu>
                                                         <MenuItem Header="Add to Playlist"
                                                                   Command="{Binding AddToPlaylistCommand}"/>
                                                     </ContextMenu>
                                                 </Border.ContextMenu>
-                                                <Grid RowDefinitions="150,*,Auto">
+                                                <Grid RowDefinitions="Auto,*,Auto">
 
-                                                    <!-- Thumbnail + checkmark -->
-                                                    <Grid Grid.Row="0">
+                                                    <!-- Thumbnail + badges -->
+                                                    <Grid Grid.Row="0"
+                                                          Height="{Binding $parent[Window].DataContext.CardThumbnailHeight}">
                                                         <Button Padding="0"
                                                                 Background="Transparent" BorderThickness="0"
+                                                                HorizontalAlignment="Stretch"
                                                                 Command="{Binding $parent[Window].DataContext.OpenPreviewCommand}"
                                                                 CommandParameter="{Binding}">
-                                                            <asyncImageLoader:AdvancedImage
-                                                                Source="{Binding ThumbnailSource}"
-                                                                Stretch="UniformToFill"
-                                                                Width="210" Height="150"/>
+                                                            <Panel>
+                                                                <asyncImageLoader:AdvancedImage
+                                                                    Source="{Binding ThumbnailSource}"
+                                                                    Stretch="UniformToFill"/>
+                                                                <Viewbox IsVisible="{Binding IsGifActive}"
+                                                                         Stretch="UniformToFill">
+                                                                    <gif:GifImage Source="{Binding ActiveGifSource}"/>
+                                                                </Viewbox>
+                                                            </Panel>
                                                         </Button>
 
                                                         <!-- Checkmark badge -->
@@ -424,34 +351,45 @@
                                                                FontSize="12"
                                                                MaxLines="2"/>
 
-                                                    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="10,4,10,10">
+                                                    <Grid Grid.Row="2" ColumnDefinitions="8*,5*" Margin="10,4,10,10">
                                                         <Button Grid.Column="0"
                                                                 Content="Apply"
                                                                 Classes="accent"
                                                                 HorizontalAlignment="Stretch"
+                                                                FontSize="{Binding $parent[Window].DataContext.CardButtonFontSize}"
                                                                 Command="{Binding $parent[Window].DataContext.ApplyCommand}"
                                                                 CommandParameter="{Binding}"/>
                                                         <Button Grid.Column="1"
                                                                 Content="Delete"
                                                                 Classes="danger"
+                                                                HorizontalAlignment="Stretch"
                                                                 Margin="6,0,0,0"
+                                                                FontSize="{Binding $parent[Window].DataContext.CardButtonFontSize}"
                                                                 Command="{Binding $parent[Window].DataContext.DeleteCommand}"
                                                                 CommandParameter="{Binding}"/>
                                                     </Grid>
 
-                                                    <!-- Selection overlay -->
-                                                    <Border Grid.RowSpan="3"
-                                                            IsVisible="{Binding IsSelected}"
-                                                            BorderBrush="{DynamicResource Accent}"
-                                                            BorderThickness="2.5"
-                                                            CornerRadius="10"
-                                                            IsHitTestVisible="False"/>
+                                                    <!-- State overlays -->
+                                                    <Panel Grid.RowSpan="3" IsHitTestVisible="False">
+                                                        <Border Classes="library-hover-outline"
+                                                                BorderBrush="{DynamicResource Accent}"
+                                                                BorderThickness="2.5"
+                                                                CornerRadius="10"/>
+                                                        <Border IsVisible="{Binding IsCurrentlyPlaying}"
+                                                                BorderBrush="{DynamicResource Success}"
+                                                                BorderThickness="2.5"
+                                                                CornerRadius="10"/>
+                                                        <Border IsVisible="{Binding IsSelected}"
+                                                                BorderBrush="{DynamicResource Accent}"
+                                                                BorderThickness="2.5"
+                                                                CornerRadius="10"/>
+                                                    </Panel>
 
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                                    </ItemsRepeater.ItemTemplate>
+                                </ItemsRepeater>
                             </ScrollViewer>
 
                         </DockPanel>
@@ -508,28 +446,28 @@
                                                    Foreground="{DynamicResource Muted}"
                                                    LetterSpacing="2"/>
                                         <CheckBox Content="Switch when video ends"
-                                                  IsChecked="{Binding AdvanceOnVideoEnd}"
+                                                  IsChecked="{Binding DisplayAdvanceOnVideoEnd}"
                                                   Foreground="{DynamicResource TextColor}"/>
                                         <StackPanel Orientation="Horizontal" Spacing="12"
-                                                    IsEnabled="{Binding !AdvanceOnVideoEnd}">
+                                                    IsEnabled="{Binding !DisplayAdvanceOnVideoEnd}">
                                             <StackPanel Spacing="6">
                                                 <TextBlock Text="Hours" FontSize="12"
                                                            Foreground="{DynamicResource Subtext}"/>
-                                                <NumericUpDown Value="{Binding IntervalHours}"
+                                                <NumericUpDown Value="{Binding DisplayIntervalHours}"
                                                                Minimum="0" Maximum="99"
                                                                FormatString="0" Width="108"/>
                                             </StackPanel>
                                             <StackPanel Spacing="6">
                                                 <TextBlock Text="Minutes" FontSize="12"
                                                            Foreground="{DynamicResource Subtext}"/>
-                                                <NumericUpDown Value="{Binding IntervalMinutes}"
+                                                <NumericUpDown Value="{Binding DisplayIntervalMinutes}"
                                                                Minimum="0" Maximum="59"
                                                                FormatString="0" Width="108"/>
                                             </StackPanel>
                                             <StackPanel Spacing="6">
                                                 <TextBlock Text="Seconds" FontSize="12"
                                                            Foreground="{DynamicResource Subtext}"/>
-                                                <NumericUpDown Value="{Binding IntervalSeconds}"
+                                                <NumericUpDown Value="{Binding DisplayIntervalSeconds}"
                                                                Minimum="0" Maximum="59"
                                                                FormatString="0" Width="108"/>
                                             </StackPanel>
@@ -549,7 +487,8 @@
 
                 <!-- ── Settings ── -->
                 <TabItem Header="Settings">
-                    <ScrollViewer>
+                    <ScrollViewer x:Name="SettingsScrollViewer"
+                                  HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="28" Spacing="20">
 
                             <TextBlock Text="Playback"
@@ -587,7 +526,7 @@
                                         <Grid ColumnDefinitions="Auto,Auto,Auto">
                                             <TextBlock Grid.Column="0" Text="Restart mpvpaper every"
                                                        VerticalAlignment="Center"
-                                                       Foreground="{StaticResource TextColor}"
+                                                       Foreground="{DynamicResource TextColor}"
                                                        Margin="0,0,12,0"/>
                                             <NumericUpDown Grid.Column="1"
                                                            Value="{Binding RestartIntervalSeconds}"
@@ -595,12 +534,12 @@
                                                            FormatString="0" Width="108"/>
                                             <TextBlock Grid.Column="2" Text="s"
                                                        VerticalAlignment="Center"
-                                                       Foreground="{StaticResource Subtext}"
+                                                       Foreground="{DynamicResource Subtext}"
                                                        Margin="8,0,0,0"/>
                                         </Grid>
                                         <TextBlock Text="Kills and relaunches mpvpaper periodically to prevent memory leaks"
                                                    FontSize="11"
-                                                   Foreground="{StaticResource Muted}"/>
+                                                   Foreground="{DynamicResource Muted}"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
@@ -814,6 +753,31 @@
                                 </StackPanel>
                             </Border>
 
+                            <TextBlock Text="APPEARANCE"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Muted}"
+                                       LetterSpacing="2"/>
+                            <Border Background="{DynamicResource BgBase}" CornerRadius="10" Padding="16">
+                                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,12,Auto">
+                                    <TextBlock Grid.Row="0" Grid.Column="0"
+                                               Text="Thumbnail aspect"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextColor}"/>
+                                    <ComboBox Grid.Row="0" Grid.Column="1"
+                                              ItemsSource="{Binding ThumbnailAspectOptions}"
+                                              SelectedItem="{Binding ThumbnailAspect}"
+                                              Width="130"/>
+                                    <TextBlock Grid.Row="2" Grid.Column="0"
+                                               Text="Card size"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextColor}"/>
+                                    <ComboBox Grid.Row="2" Grid.Column="1"
+                                              ItemsSource="{Binding CardSizeOptions}"
+                                              SelectedItem="{Binding CardSize}"
+                                              Width="130"/>
+                                </Grid>
+                            </Border>
+
                             <TextBlock Text="COMMAND PREVIEW"
                                        FontSize="11" FontWeight="SemiBold"
                                        Foreground="{DynamicResource Muted}"
@@ -977,8 +941,146 @@
 
             </TabControl>
 
+        <!-- Playlist panel -->
+        <Border x:Name="PlaylistPanel"
+                Grid.Row="1"
+                IsVisible="False"
+                Background="{DynamicResource BgMantle}"
+                BorderBrush="{DynamicResource Surface0}"
+                BorderThickness="0,1,0,0">
+            <DockPanel Margin="0,8,0,0">
+
+                <!-- Playlist header -->
+                <DockPanel DockPanel.Dock="Top" Margin="12,0,12,8">
+                    <TextBlock Text="PLAYLIST"
+                               FontSize="11" FontWeight="SemiBold"
+                               Foreground="{DynamicResource Muted}"
+                               LetterSpacing="2"
+                               VerticalAlignment="Center"/>
+                    <StackPanel DockPanel.Dock="Right"
+                                Orientation="Horizontal"
+                                Spacing="6"
+                                HorizontalAlignment="Right">
+                        <Button Classes="ghost"
+                                Width="28" Height="28" Padding="0"
+                                ToolTip.Tip="Playlist Settings"
+                                Command="{Binding TogglePlaylistSettingsCommand}">
+                            <mi:MaterialIcon Kind="Tune" Width="16" Height="16"/>
+                        </Button>
+                        <Button Classes="ghost"
+                                Width="28" Height="28" Padding="0"
+                                ToolTip.Tip="Load Playlist"
+                                Command="{Binding OpenLoadPlaylistCommand}">
+                            <mi:MaterialIcon Kind="FolderOpen" Width="16" Height="16"/>
+                        </Button>
+                        <Button Classes="ghost"
+                                Width="28" Height="28" Padding="0"
+                                ToolTip.Tip="Save Playlist"
+                                Command="{Binding OpenSavePlaylistCommand}">
+                            <mi:MaterialIcon Kind="ContentSave" Width="16" Height="16"/>
+                        </Button>
+                        <Button Classes="accent"
+                                Padding="10,0" Height="28"
+                                Command="{Binding PlayCustomPlaylistCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <mi:MaterialIcon Kind="Play" Width="14" Height="14"/>
+                                <TextBlock Text="Play" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </DockPanel>
+
+                <!-- Empty state -->
+                <TextBlock IsVisible="{Binding IsPlaylistEmpty}"
+                           Text="Add wallpapers using the + button on each card"
+                           Foreground="{DynamicResource Muted}"
+                           FontSize="12"
+                           Margin="12,0"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Center"/>
+
+                <!-- Playlist thumbnails -->
+                <Grid IsVisible="{Binding !IsPlaylistEmpty}">
+                    <ScrollViewer x:Name="PlaylistScrollViewer"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Disabled"
+                                  AllowAutoHide="False">
+                    <ItemsControl x:Name="PlaylistItemsControl"
+                                  ItemsSource="{Binding PlaylistItems}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="8,0"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:WallpaperCardViewModel">
+                                <Border Width="100" CornerRadius="6"
+                                        ClipToBounds="True"
+                                        Background="{DynamicResource BgBase}"
+                                        PointerEntered="OnCardPointerEntered"
+                                        PointerExited="OnCardPointerExited">
+                                    <Grid Height="90">
+                                        <asyncImageLoader:AdvancedImage
+                                            Source="{Binding ThumbnailSource}"
+                                            Stretch="UniformToFill"
+                                            Width="100" Height="90"/>
+                                        <Viewbox IsVisible="{Binding IsGifActive}"
+                                                 Stretch="UniformToFill">
+                                            <gif:GifImage Source="{Binding ActiveGifSource}"/>
+                                        </Viewbox>
+                                        <Border Background="#99000000"
+                                                VerticalAlignment="Bottom"
+                                                Padding="4,2">
+                                            <TextBlock Text="{Binding Title}"
+                                                       FontSize="10"
+                                                       Foreground="White"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </Border>
+                                        <Button HorizontalAlignment="Right"
+                                                VerticalAlignment="Top"
+                                                Margin="0,5,5,0"
+                                                Width="24" Height="24"
+                                                CornerRadius="12" Padding="0"
+                                                BorderThickness="0"
+                                                Background="{DynamicResource BgCrust}"
+                                                Command="{Binding $parent[Window].DataContext.RemoveFromPlaylistCommand}"
+                                                CommandParameter="{Binding}">
+                                            <TextBlock Text="−"
+                                                       FontSize="12" FontWeight="Bold"
+                                                       Foreground="{DynamicResource Accent}"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                        </Button>
+                                        <Border IsHitTestVisible="False" CornerRadius="6"
+                                                IsVisible="{Binding IsGifActive}"
+                                                Opacity="0.45"
+                                                BorderBrush="{DynamicResource Accent}"
+                                                BorderThickness="1.5"/>
+                                        <Border IsHitTestVisible="False" CornerRadius="6"
+                                                IsVisible="{Binding IsCurrentlyPlaying}"
+                                                BorderBrush="{DynamicResource Success}"
+                                                BorderThickness="1.5"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    </ScrollViewer>
+                    <!-- Drop position indicator -->
+                    <Border x:Name="PlaylistDropIndicator"
+                            Width="2" CornerRadius="1"
+                            VerticalAlignment="Stretch"
+                            HorizontalAlignment="Left"
+                            Background="{DynamicResource Accent}"
+                            IsHitTestVisible="False"
+                            IsVisible="False"/>
+                </Grid>
+
+            </DockPanel>
+        </Border>
+
         <!-- Status bar -->
-        <Border Grid.Row="1"
+        <Border Grid.Row="2"
                 Background="{DynamicResource BgCrust}"
                 Padding="16,6">
             <TextBlock Text="{Binding StatusMessage}"
@@ -987,7 +1089,7 @@
         </Border>
 
         <!-- Download progress modal -->
-        <Grid Grid.RowSpan="2" IsVisible="{Binding IsDownloading}" Background="#B2000000">
+        <Grid Grid.RowSpan="3" IsVisible="{Binding IsDownloading}" Background="#B2000000">
             <Border Background="{DynamicResource BgBase}" CornerRadius="12" Padding="28"
                     Width="420" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel Spacing="14">
@@ -1011,7 +1113,7 @@
         </Grid>
 
         <!-- Image preview modal -->
-        <Grid Grid.RowSpan="2" IsVisible="{Binding PreviewCard, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <Grid Grid.RowSpan="3" IsVisible="{Binding PreviewCard, Converter={x:Static ObjectConverters.IsNotNull}}">
             <Button Classes="backdrop"
                     HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                     BorderThickness="0"
@@ -1028,11 +1130,20 @@
                         MaxWidth="828" MaxHeight="500"/>
 
                     <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" Margin="0,12,0,0">
-                        <TextBlock Grid.Column="0"
-                                   Text="{Binding PreviewCard.Title}"
-                                   VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextColor}"
-                                   FontSize="13" TextTrimming="CharacterEllipsis"/>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBox Text="{Binding PreviewCard.Title}"
+                                     IsReadOnly="True"
+                                     Foreground="{DynamicResource TextColor}"
+                                     FontSize="13"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     Padding="0"/>
+                            <TextBlock Text="{Binding PreviewCard.VideoDuration}"
+                                       IsVisible="{Binding PreviewCard.VideoDuration, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                       Foreground="{DynamicResource Subtext}"
+                                       FontSize="11"
+                                       Margin="0,2,0,0"/>
+                        </StackPanel>
                         <Button Grid.Column="1"
                                 Content="Download &amp; Apply"
                                 Classes="accent"
@@ -1059,7 +1170,7 @@
         </Grid>
 
         <!-- Error modal -->
-        <Grid Grid.RowSpan="2" IsVisible="{Binding ErrorMessage, Converter={x:Static ObjectConverters.IsNotNull}}"
+        <Grid Grid.RowSpan="3" IsVisible="{Binding ErrorMessage, Converter={x:Static ObjectConverters.IsNotNull}}"
               Background="#B2000000">
             <Border Background="{DynamicResource BgBase}" CornerRadius="12" Padding="28"
                     Width="420" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -1076,7 +1187,7 @@
         </Grid>
 
         <!-- Clear library confirmation modal -->
-        <Grid Grid.RowSpan="2" IsVisible="{Binding IsClearLibraryOpen}" Background="#B2000000">
+        <Grid Grid.RowSpan="3" IsVisible="{Binding IsClearLibraryOpen}" Background="#B2000000">
             <Border Background="{DynamicResource BgBase}" CornerRadius="12" Padding="28"
                     Width="380" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel Spacing="14">
@@ -1104,7 +1215,7 @@
         </Grid>
 
         <!-- Save playlist modal -->
-        <Grid Grid.RowSpan="2" IsVisible="{Binding IsSavePlaylistOpen}" Background="#B2000000">
+        <Grid Grid.RowSpan="3" IsVisible="{Binding IsSavePlaylistOpen}" Background="#B2000000">
             <Border Background="{DynamicResource BgBase}" CornerRadius="12" Padding="24"
                     Width="380" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel Spacing="14">
@@ -1133,7 +1244,7 @@
         </Grid>
 
         <!-- Load playlist modal -->
-        <Grid Grid.RowSpan="2" IsVisible="{Binding IsLoadPlaylistOpen}" Background="#B2000000">
+        <Grid Grid.RowSpan="3" IsVisible="{Binding IsLoadPlaylistOpen}" Background="#B2000000">
             <Border Background="{DynamicResource BgBase}" CornerRadius="12" Padding="24"
                     Width="380" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel Spacing="14">
@@ -1166,7 +1277,7 @@
         </Grid>
 
         <!-- Import wallpaper modal -->
-        <Grid Grid.RowSpan="2" IsVisible="{Binding IsImportOpen}" Background="#B2000000">
+        <Grid Grid.RowSpan="3" IsVisible="{Binding IsImportOpen}" Background="#B2000000">
             <Border Background="{DynamicResource BgBase}" CornerRadius="12" Padding="24"
                     Width="380" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel Spacing="14">
@@ -1198,7 +1309,7 @@
 
         <!-- Drag preview (floats with cursor) -->
         <Canvas x:Name="DragPreviewCanvas"
-                Grid.RowSpan="2"
+                Grid.RowSpan="3"
                 IsHitTestVisible="False"
                 IsVisible="False">
             <Border x:Name="DragPreviewBorder"
